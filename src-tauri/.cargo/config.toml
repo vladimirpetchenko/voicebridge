@@ -1,4 +1,10 @@
 # Сброс SDKROOT: в окружении разработчика он может указывать на iOS SDK,
 # что ломает сборку whisper.cpp (FindBLAS). Пустое значение = macOS по умолчанию.
+#
+# Минимальная версия macOS 10.15: whisper.cpp использует std::filesystem,
+# который в новых Xcode (libc++) помечен как доступный только с macOS 10.15.
+# Без этого сборка whisper.cpp на CI падает с "'path' is unavailable:
+# introduced in macOS 10.15" (дефолт Tauri — 10.13).
 [env]
 SDKROOT = { value = "", force = true }
+MACOSX_DEPLOYMENT_TARGET = { value = "10.15", force = true }
