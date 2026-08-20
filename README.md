@@ -33,7 +33,12 @@
 - **cmake** — нужен для сборки `whisper.cpp` из исходников.
 - **macOS**: Xcode Command Line Tools (`xcode-select --install`) + clang.
   Apple Silicon рекомендуется (Metal-ускорение whisper).
-- **Windows**: MSVC Build Tools (набор C++ для сборки whisper.cpp).
+- **Windows**: MSVC Build Tools (набор C++ для сборки whisper.cpp) и
+  [LLVM](https://github.com/llvm/llvm-project/releases) — нужен `libclang.dll`
+  для генерации Rust-биндингов `whisper-rs` через `bindgen`. Если LLVM
+  установлен не в `C:\Program Files\LLVM`, задайте переменную окружения
+  `LIBCLANG_PATH`, указав путь к папке с `libclang.dll` (обычно
+  `<LLVM>\bin`).
 
 > Первая сборка компилирует `whisper.cpp` из исходников и занимает несколько минут.
 
