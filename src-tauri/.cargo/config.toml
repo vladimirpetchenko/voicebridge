@@ -1,0 +1,4 @@
+# Сброс SDKROOT: в окружении разработчика он может указывать на iOS SDK,
+# что ломает сборку whisper.cpp (FindBLAS). Пустое значение = macOS по умолчанию.
+[env]
+SDKROOT = { value = "", force = true }

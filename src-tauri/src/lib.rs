@@ -1,0 +1,107 @@
+mod commands;
+mod hotkeys;
+mod logging;
+pub mod modules;
+mod state;
+mod tray;
+
+use tauri::Manager;
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .setup(|app| {
+            let handle = app.handle().clone();
+
+            // Логирование в файл (важно на Windows — там нет консоли).
+            let log_dir = handle
+                .path()
+                .app_log_dir()
+                .or_else(|_| handle.path().app_data_dir())
+                .unwrap_or_else(|_| std::env::temp_dir());
+            let _ = std::fs::create_dir_all(&log_dir);
+            logging::init(log_dir.join("voicebridge.log"));
+            log::info!("VoiceBridge starting (log: {:?})", log_dir);
+
+            handle.manage(state::SharedState::default());
+            handle.manage(state::ConversationStore::default());
+            handle.manage(modules::audio::AudioEngine::default());
+            handle.manage(modules::stt::spawn(handle.clone()));
+
+            // Восстанавливаем сохранённое состояние после перезапуска.
+            // Рантайм-поля (статус, запись, текст) сбрасываются.
+            if let Some(loaded) = commands::load_state(&handle) {
+                let st = handle.state::<state::SharedState>();
+                let mut s = st.0.lock().unwrap();
+                s.mode = loaded.mode;
+                s.sensitivity = loaded.sensitivity;
+                s.silence_timeout = loaded.silence_timeout;
+                s.language = loaded.language;
+                s.selected_model = loaded.selected_model;
+                s.selected_microphone = loaded.selected_microphone;
+                s.selected_session = loaded.selected_session;
+                s.selected_window = loaded.selected_window;
+            }
+
+            tray::setup(&handle)?;
+            hotkeys::setup(&handle)?;
+
+            let snapshot = handle
+                .state::<state::SharedState>()
+                .0
+                .lock()
+                .unwrap()
+                .clone();
+            commands::emit_state(&handle, &snapshot);
+
+            // Модель по умолчанию (Base) + автоскачивание при первом запуске.
+            modules::stt::ensure_default_model(&handle);
+
+            Ok(())
+        })
+        .on_menu_event(tray::handle_menu_event)
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::get_app_state,
+            commands::set_mode,
+            commands::toggle_recording,
+            commands::start_recording,
+            commands::stop_recording,
+            commands::list_microphones,
+            commands::select_microphone,
+            commands::set_sensitivity,
+            commands::set_silence_timeout,
+            commands::list_opencode_sessions,
+            commands::select_opencode_session,
+            commands::select_opencode_instance,
+            commands::list_projects,
+            commands::start_project,
+            commands::stop_project,
+            commands::list_windows,
+            commands::get_models,
+            commands::download_model,
+            commands::select_stt_model,
+            commands::set_language,
+            commands::open_response_window,
+            commands::get_conversation,
+            commands::close_response_window,
+            commands::quit_app
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
