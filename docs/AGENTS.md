@@ -27,8 +27,9 @@ npm run build            # tsc + vite build
     чата `ResponseView` (шапка с названием сессии/проекта, диалог, инструменты,
     действия).
   - `src/ChatInput.tsx` — панель ввода в чате: текстовое поле + отправка +
-    голосовая кнопка (тап/удержание/тишина), режимы отправки.
-  - `src/Markdown.tsx` — рендер markdown.
+    голосовая кнопка (тап/удержание/тишина), режимы отправки, индикатор записи.
+  - `src/Markdown.tsx` — рендер markdown (подсветка синтаксиса).
+  - `src/sounds.ts` — звуки интерфейса (Web Audio API, синтез без файлов).
 - Бэкенд:
   - `src-tauri/src/commands.rs` — все `#[tauri::command]` (мост в фронтенд).
   - `src-tauri/src/state.rs` — `AppState`, `ConversationStore`, типы.
@@ -101,10 +102,15 @@ Tauri сам мапит camelCase (JS) ↔ snake_case (Rust) в аргумент
 permission/question). Главное окно — лаунчер, окно чата — основной интерфейс:
 шапка (название сессии + проект), диалог с markdown, панель ввода (текст +
 отправка + голос с тап/удержание/авто-стоп), режимы отправки (сразу в чат /
-предпросмотр), индикатор текущего режима в чате. Обнаружение/остановка OpenCode
-работает и на Windows (`netstat`+`tasklist` для портов/PID, `taskkill` для
-остановки, `where` для поиска бинаря), подсветка синтаксиса в markdown
-(`rehype-highlight` + тёмная тема hljs).
+предпросмотр), индикатор текущего режима в чате (клик — переключение). Окна
+чата изолированы по сессиям: запись/индикатор/превью привязаны к сессии окна
+(`recording_session_id`); открытые сессии трекаются в лаунчере
+(`ConversationStore.open_sessions`, команда `list_open_session_ids`, событие
+`sessions-open-changed`), при закрытии окна выбор сбрасывается. Обнаружение/
+остановка OpenCode работает и на Windows (`netstat`+`tasklist` для портов/PID,
+`taskkill` для остановки, `where` для поиска бинаря), подсветка синтаксиса в
+markdown (`rehype-highlight` + тёмная тема hljs), иконки `lucide-react` вместо
+emoji, звуки записи/отправки/ответа и анимация «думает» в чате.
 
 Не сделано: GUI-автоматизация (`modules/automation.rs` — заглушка, нужны
 системные API: macOS CGWindowList, Windows EnumWindows; настройки вставки в
