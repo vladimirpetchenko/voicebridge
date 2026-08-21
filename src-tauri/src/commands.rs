@@ -36,7 +36,7 @@ pub fn load_state(app: &AppHandle) -> Option<AppState> {
     serde_json::from_str(&data).ok()
 }
 
-pub fn handle_toggle_recording(app: &AppHandle) {
+pub fn handle_toggle_recording(app: &AppHandle, session: Option<String>) {
     let is_recording = {
         let state = app.state::<SharedState>();
         let s = state.0.lock().unwrap();
@@ -45,22 +45,25 @@ pub fn handle_toggle_recording(app: &AppHandle) {
     if is_recording {
         handle_stop_recording(app);
     } else {
-        handle_start_recording(app);
+        handle_start_recording(app, session);
     }
 }
 
-pub fn handle_start_recording(app: &AppHandle) {
+pub fn handle_start_recording(app: &AppHandle, session: Option<String>) {
     let state = app.state::<SharedState>();
     let mut s = state.0.lock().unwrap();
     if s.status == AppStatus::Recording {
         drop(s);
         return;
     }
+    // Целевая сессия: из окна чата — явно, из хоткея/трея — выбранная сессия.
+    let target = session.or_else(|| s.selected_session.as_ref().map(|t| t.session_id.clone()));
     s.status = AppStatus::Recording;
     s.recording = true;
     s.status_message = "Запись…".into();
     s.transcript.clear();
     s.response.clear();
+    s.recording_session_id = target;
     let snapshot = s.clone();
     drop(s);
     emit_state(app, &snapshot);
@@ -116,23 +119,29 @@ pub fn handle_stop_recording(app: &AppHandle) {
 /// Устанавливает распознанный текст и запускает отправку в OpenCode.
 /// Если сессия не выбрана — она будет создана автоматически.
 pub fn finish_transcription(app: &AppHandle, text: String) {
-    let mode = {
+    let (mode, send_mode, target_session) = {
         let state = app.state::<SharedState>();
         let s = state.0.lock().unwrap();
-        s.mode
+        let target = s
+            .recording_session_id
+            .clone()
+            .or_else(|| s.selected_session.as_ref().map(|t| t.session_id.clone()));
+        (s.mode, s.send_mode.clone(), target)
     };
 
     let state = app.state::<SharedState>();
     let mut s = state.0.lock().unwrap();
     s.transcript = text.clone();
+    s.recording_session_id = target_session.clone();
     s.response.clear();
     let snapshot = s.clone();
     drop(s);
     emit_state(app, &snapshot);
     save_state(app, &snapshot);
 
-    if mode == AppMode::OpenCode {
-        crate::modules::opencode::send_prompt(app.clone(), text);
+    // В режиме предпроверки текст остаётся в поле ввода — отправку делает пользователь.
+    if mode == AppMode::OpenCode && send_mode == "direct" {
+        crate::modules::opencode::send_prompt(app.clone(), text, target_session);
     }
 }
 
@@ -172,15 +181,26 @@ pub fn set_mode(app: AppHandle, mode: String) -> AppState {
     current_state(&app)
 }
 
+/// Извлекает id сессии из метки окна чата (`response-{sessionId}`).
+fn session_id_from_window(window: &tauri::WebviewWindow) -> Option<String> {
+    window
+        .label()
+        .strip_prefix("response-")
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
+}
+
 #[tauri::command]
-pub fn toggle_recording(app: AppHandle) -> AppState {
-    handle_toggle_recording(&app);
+pub fn toggle_recording(app: AppHandle, window: tauri::WebviewWindow) -> AppState {
+    let session = session_id_from_window(&window);
+    handle_toggle_recording(&app, session);
     current_state(&app)
 }
 
 #[tauri::command]
-pub fn start_recording(app: AppHandle) -> AppState {
-    handle_start_recording(&app);
+pub fn start_recording(app: AppHandle, window: tauri::WebviewWindow) -> AppState {
+    let session = session_id_from_window(&window);
+    handle_start_recording(&app, session);
     current_state(&app)
 }
 
@@ -253,6 +273,106 @@ pub fn set_silence_timeout(app: AppHandle, seconds: f32) -> AppState {
 }
 
 #[tauri::command]
+pub fn set_paste_method(app: AppHandle, method: String) -> AppState {
+    let state = app.state::<SharedState>();
+    let mut s = state.0.lock().unwrap();
+    s.paste_method = method;
+    let snapshot = s.clone();
+    drop(s);
+    emit_state(&app, &snapshot);
+    save_state(&app, &snapshot);
+    current_state(&app)
+}
+
+#[tauri::command]
+pub fn set_paste_delay(app: AppHandle, ms: u32) -> AppState {
+    let state = app.state::<SharedState>();
+    let mut s = state.0.lock().unwrap();
+    s.paste_delay_ms = ms.min(10000);
+    let snapshot = s.clone();
+    drop(s);
+    emit_state(&app, &snapshot);
+    save_state(&app, &snapshot);
+    current_state(&app)
+}
+
+#[tauri::command]
+pub fn set_send_mode(app: AppHandle, mode: String) -> AppState {
+    let state = app.state::<SharedState>();
+    let mut s = state.0.lock().unwrap();
+    s.send_mode = if mode == "confirm" { "confirm".into() } else { "direct".into() };
+    let snapshot = s.clone();
+    drop(s);
+    emit_state(&app, &snapshot);
+    save_state(&app, &snapshot);
+    current_state(&app)
+}
+
+/// Отправка набранного вручную текста в сессию окна чата (не зависит от режима).
+#[tauri::command]
+pub fn send_text(app: AppHandle, window: tauri::WebviewWindow, text: String) {
+    let session = session_id_from_window(&window);
+    crate::modules::opencode::send_prompt(app, text, session);
+}
+
+#[tauri::command]
+pub fn get_session_info(
+    window: tauri::WebviewWindow,
+    app: AppHandle,
+) -> crate::state::SessionInfo {
+    let session_id = window
+        .label()
+        .strip_prefix("response-")
+        .unwrap_or_default()
+        .to_string();
+    let store = app.state::<crate::state::ConversationStore>();
+    let title = store
+        .titles
+        .lock()
+        .unwrap()
+        .get(&session_id)
+        .cloned()
+        .unwrap_or_default();
+    let port = store
+        .ports
+        .lock()
+        .unwrap()
+        .get(&session_id)
+        .copied()
+        .unwrap_or(0);
+    let project = if port > 0 {
+        crate::modules::opencode::project_name(port)
+    } else {
+        String::new()
+    };
+    crate::state::SessionInfo { title, project }
+}
+
+#[tauri::command]
+pub fn get_opencode_binary() -> String {
+    crate::modules::opencode::opencode_binary()
+}
+
+#[tauri::command]
+pub fn reply_permission(port: u16, request_id: String, reply: String) -> Result<(), String> {
+    crate::modules::opencode::reply_permission(port, &request_id, &reply)
+}
+
+#[tauri::command]
+pub fn reply_question(
+    port: u16,
+    request_id: String,
+    answers: Vec<Vec<String>>,
+) -> Result<(), String> {
+    crate::modules::opencode::reply_question(port, &request_id, answers)
+}
+
+#[tauri::command]
+pub fn reject_question(port: u16, request_id: String) -> Result<(), String> {
+    crate::modules::opencode::reject_question(port, &request_id)
+}
+
+#[tauri::command]
 pub fn list_opencode_sessions() -> Vec<crate::state::OpenCodeInstance> {
     crate::modules::opencode::discover_instances()
 }
@@ -271,7 +391,7 @@ pub fn select_opencode_session(
         instance_id: instance_id.clone(),
         port,
         session_id: session_id.clone(),
-        title,
+        title: title.clone(),
     });
     s.active_instance = Some(crate::state::OpenCodeInstanceRef {
         id: instance_id,
@@ -279,6 +399,7 @@ pub fn select_opencode_session(
         name: String::new(),
     });
     crate::modules::opencode::remember_session_port(&app, &session_id, port);
+    crate::modules::opencode::remember_session_title(&app, &session_id, &title);
     // Показываем последний ответ этой сессии и сбрасываем статус.
     s.response = crate::modules::opencode::latest_assistant_response(&app, &session_id);
     s.status = AppStatus::Idle;
@@ -384,6 +505,7 @@ pub fn quit_app(app: AppHandle) {
 #[tauri::command]
 pub fn open_response_window(app: AppHandle, session_id: String, title: String, port: u16) {
     crate::modules::opencode::remember_session_port(&app, &session_id, port);
+    crate::modules::opencode::remember_session_title(&app, &session_id, &title);
 
     let label = format!("response-{session_id}");
 
@@ -402,6 +524,13 @@ pub fn open_response_window(app: AppHandle, session_id: String, title: String, p
         .min_inner_size(480.0, 400.0)
         .build();
     }
+
+    crate::modules::opencode::mark_session_open(&app, &session_id);
+}
+
+#[tauri::command]
+pub fn list_open_session_ids(app: AppHandle) -> Vec<String> {
+    crate::modules::opencode::open_session_ids(&app)
 }
 
 #[tauri::command]

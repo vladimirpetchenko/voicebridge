@@ -12,7 +12,7 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     app.global_shortcut()
         .on_shortcut(shortcut, move |app, _sc, event| {
             if event.state() == ShortcutState::Pressed {
-                crate::commands::handle_toggle_recording(app);
+                crate::commands::handle_toggle_recording(app, None);
             }
         })
         .map_err(|e| std::io::Error::other(e.to_string()))?;

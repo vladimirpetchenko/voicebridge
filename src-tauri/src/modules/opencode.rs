@@ -121,12 +121,38 @@ fn instance_name(port: u16, sessions: &[OpenCodeSession]) -> String {
     }
 }
 
-/// Находит порты, на которых слушают процессы OpenCode (через `lsof`).
-fn opencode_process_ports() -> Vec<u16> {
-    if !(cfg!(target_os = "macos") || cfg!(target_os = "linux")) {
-        return Vec::new();
+/// PID процессов opencode на Windows (через `tasklist`).
+#[cfg(target_os = "windows")]
+fn opencode_pids_windows() -> Vec<u32> {
+    let out = match Command::new("tasklist")
+        .args(["/FO", "CSV", "/NH"])
+        .output()
+    {
+        Ok(o) => o,
+        Err(_) => return Vec::new(),
+    };
+    let text = String::from_utf8_lossy(&out.stdout);
+    let mut pids = Vec::new();
+    for line in text.lines() {
+        // CSV-формат: "opencode.exe","1234","Console","1","123 456 K"
+        let parts: Vec<&str> = line.split(',').collect();
+        if parts.len() < 2 {
+            continue;
+        }
+        if !parts[0].trim_matches('"').to_lowercase().contains("opencode") {
+            continue;
+        }
+        if let Ok(pid) = parts[1].trim_matches('"').parse::<u32>() {
+            pids.push(pid);
+        }
     }
-    let out = match std::process::Command::new("lsof")
+    pids
+}
+
+/// Находит порты, на которых слушают процессы OpenCode (через `lsof`).
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn opencode_process_ports() -> Vec<u16> {
+    let out = match Command::new("lsof")
         .args(["-nP", "-iTCP", "-sTCP:LISTEN"])
         .output()
     {
@@ -144,6 +170,45 @@ fn opencode_process_ports() -> Vec<u16> {
             continue;
         }
         if let Some(port) = extract_port(fields[8]) {
+            ports.push(port);
+        }
+    }
+    ports
+}
+
+/// Находит порты, на которых слушают процессы OpenCode (через `netstat` + `tasklist`).
+#[cfg(target_os = "windows")]
+fn opencode_process_ports() -> Vec<u16> {
+    let pids = opencode_pids_windows();
+    if pids.is_empty() {
+        return Vec::new();
+    }
+    let out = match Command::new("netstat")
+        .args(["-ano", "-p", "TCP"])
+        .output()
+    {
+        Ok(o) => o,
+        Err(_) => return Vec::new(),
+    };
+    let text = String::from_utf8_lossy(&out.stdout);
+    let mut ports = Vec::new();
+    for line in text.lines() {
+        // Формат: Proto Local_Address Foreign_Address State PID
+        let fields: Vec<&str> = line.split_whitespace().collect();
+        if fields.len() < 5 {
+            continue;
+        }
+        if !fields[3].eq_ignore_ascii_case("LISTENING") {
+            continue;
+        }
+        let pid: u32 = match fields[4].parse() {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
+        if !pids.contains(&pid) {
+            continue;
+        }
+        if let Some(port) = extract_port(fields[1]) {
             ports.push(port);
         }
     }
@@ -212,6 +277,7 @@ fn read_sse(
     resp: reqwest::blocking::Response,
     app: &AppHandle,
     session_id: &str,
+    port: u16,
 ) {
     use std::io::{BufRead, BufReader};
     let reader = BufReader::new(resp);
@@ -283,6 +349,48 @@ fn read_sse(
             "session.idle" => {
                 finish_response(app, session_id, text);
                 return;
+            }
+            "permission.asked" => {
+                let request_id = prop_str(&ev.properties, "id").unwrap_or_default();
+                let permission = prop_str(&ev.properties, "permission").unwrap_or_default();
+                let patterns: Vec<String> = ev
+                    .properties
+                    .get("patterns")
+                    .and_then(|p| p.as_array())
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                log::info!(
+                    "permission.asked: id={request_id} permission={permission} patterns={:?}",
+                    patterns
+                );
+                let _ = app.emit(
+                    "opencode-permission",
+                    serde_json::json!({
+                        "sessionId": session_id,
+                        "requestId": request_id,
+                        "port": port,
+                        "permission": permission,
+                        "patterns": patterns,
+                    }),
+                );
+            }
+            "question.asked" => {
+                let request_id = prop_str(&ev.properties, "id").unwrap_or_default();
+                let questions = ev.properties.get("questions").cloned().unwrap_or_default();
+                log::info!("question.asked: id={request_id}");
+                let _ = app.emit(
+                    "opencode-question",
+                    serde_json::json!({
+                        "sessionId": session_id,
+                        "requestId": request_id,
+                        "port": port,
+                        "questions": questions,
+                    }),
+                );
             }
             "session.error" => {
                 let err = ev
@@ -408,6 +516,71 @@ pub fn remember_session_port(app: &AppHandle, session_id: &str, port: u16) {
     ports.insert(session_id.to_string(), port);
 }
 
+/// Запоминает заголовок сессии (для шапки окна чата).
+pub fn remember_session_title(app: &AppHandle, session_id: &str, title: &str) {
+    let store = app.state::<ConversationStore>();
+    let mut titles = store.titles.lock().unwrap();
+    titles.insert(session_id.to_string(), title.to_string());
+}
+
+/// Список id сессий, для которых сейчас открыто окно чата.
+pub fn open_session_ids(app: &AppHandle) -> Vec<String> {
+    let store = app.state::<ConversationStore>();
+    let open = store.open_sessions.lock().unwrap();
+    let mut ids: Vec<String> = open.iter().cloned().collect();
+    ids.sort();
+    ids
+}
+
+/// Помечает сессию как открытую (есть окно чата) и оповещает фронтенд.
+pub fn mark_session_open(app: &AppHandle, session_id: &str) {
+    let store = app.state::<ConversationStore>();
+    let mut open = store.open_sessions.lock().unwrap();
+    open.insert(session_id.to_string());
+    drop(open);
+    let _ = app.emit("sessions-open-changed", open_session_ids(app));
+}
+
+/// Помечает сессию как закрытую (окно чата уничтожено) и оповещает фронтенд.
+pub fn mark_session_closed(app: &AppHandle, session_id: &str) {
+    let store = app.state::<ConversationStore>();
+    let mut open = store.open_sessions.lock().unwrap();
+    open.remove(session_id);
+    drop(open);
+
+    // Если закрытая сессия была выбранной — сбрасываем выбор, чтобы лаунчер
+    // не показывал закрытую сессию как активную.
+    {
+        let state = app.state::<SharedState>();
+        let mut s = state.0.lock().unwrap();
+        if s.selected_session
+            .as_ref()
+            .map(|t| t.session_id.as_str())
+            == Some(session_id)
+        {
+            s.selected_session = None;
+            s.response.clear();
+            s.status = AppStatus::Idle;
+            s.status_message = "Готов к работе".into();
+            let snapshot = s.clone();
+            drop(s);
+            crate::commands::emit_state(app, &snapshot);
+            crate::commands::save_state(app, &snapshot);
+        }
+    }
+
+    let _ = app.emit("sessions-open-changed", open_session_ids(app));
+}
+
+/// Имя проекта (basename корневой папки) по порту экземпляра.
+pub fn project_name(port: u16) -> String {
+    project_worktree(port)
+        .as_deref()
+        .and_then(|w| Path::new(w).file_name())
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
 #[derive(Deserialize)]
 struct HistoryMessage {
     info: HistoryInfo,
@@ -520,15 +693,52 @@ fn ensure_selected_session(app: &AppHandle, text: &str) -> Result<OpenCodeTarget
     Ok(target)
 }
 
-/// Отправляет текст в выбранную сессию OpenCode (потоковый приём ответа).
+/// Возвращает цель (порт + заголовок) для известной сессии по её id.
+fn target_for_session(app: &AppHandle, session_id: &str) -> Option<OpenCodeTarget> {
+    let store = app.state::<ConversationStore>();
+    let port = store.ports.lock().unwrap().get(session_id).copied()?;
+    let title = store
+        .titles
+        .lock()
+        .unwrap()
+        .get(session_id)
+        .cloned()
+        .unwrap_or_default();
+    Some(OpenCodeTarget {
+        instance_id: format!("port-{port}"),
+        port,
+        session_id: session_id.to_string(),
+        title,
+    })
+}
+
+/// Возвращает выбранную сессию, а если её нет (или сервер упал) — создаёт новую
+/// в первом доступном экземпляре OpenCode. Если указана конкретная сессия
+/// (например, из окна чата) — использует её.
+fn ensure_target_session(
+    app: &AppHandle,
+    text: &str,
+    prefer_session: Option<&str>,
+) -> Result<OpenCodeTarget, String> {
+    if let Some(sid) = prefer_session {
+        if let Some(target) = target_for_session(app, sid) {
+            if is_server_running(target.port) {
+                return Ok(target);
+            }
+        }
+    }
+    ensure_selected_session(app, text)
+}
+
+/// Отправляет текст в сессию OpenCode (потоковый приём ответа).
 /// Если сессия не выбрана — создаёт новую.
-pub fn send_prompt(app: AppHandle, text: String) {
+pub fn send_prompt(app: AppHandle, text: String, prefer_session: Option<String>) {
     set_status(&app, AppStatus::Processing, "OpenCode думает…");
 
     std::thread::Builder::new()
         .name("opencode-send".into())
         .spawn(move || {
-            let target = match ensure_selected_session(&app, &text) {
+            let target = match ensure_target_session(&app, &text, prefer_session.as_deref()) {
                 Ok(t) => t,
                 Err(e) => {
                     fail(&app, "", e);
@@ -574,7 +784,7 @@ pub fn send_prompt(app: AppHandle, text: String) {
             });
 
             // 3. Читаем события до завершения.
-            read_sse(sse, &app, &session_id);
+            read_sse(sse, &app, &session_id, port);
         })
         .expect("failed to spawn opencode thread");
 }
@@ -602,19 +812,35 @@ struct DirRow {
 }
 
 /// Находит исполняемый файл opencode (PATH у GUI-приложений ограничен).
-fn opencode_binary() -> String {
-    for p in ["/opt/homebrew/bin/opencode", "/usr/local/bin/opencode"] {
-        if Path::new(p).exists() {
-            return p.to_string();
+pub fn opencode_binary() -> String {
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        for p in ["/opt/homebrew/bin/opencode", "/usr/local/bin/opencode"] {
+            if Path::new(p).exists() {
+                return p.to_string();
+            }
+        }
+        if let Ok(out) = Command::new("sh")
+            .args(["-lc", "command -v opencode"])
+            .output()
+        {
+            let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if !s.is_empty() {
+                return s;
+            }
         }
     }
-    if let Ok(out) = Command::new("sh")
-        .args(["-lc", "command -v opencode"])
-        .output()
+    #[cfg(target_os = "windows")]
     {
-        let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
-        if !s.is_empty() {
-            return s;
+        // `where opencode` выводит пути (по одному на строку), берём первый.
+        if let Ok(out) = Command::new("where").arg("opencode").output() {
+            let s = String::from_utf8_lossy(&out.stdout);
+            if let Some(first) = s.lines().next() {
+                let t = first.trim();
+                if !t.is_empty() {
+                    return t.to_string();
+                }
+            }
         }
     }
     "opencode".to_string()
@@ -640,6 +866,7 @@ fn is_server_running(port: u16) -> bool {
 }
 
 /// PID процесса opencode, слушающего заданный порт (через lsof).
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn opencode_pid_on_port(port: u16) -> Option<u32> {
     let out = Command::new("lsof")
         .args(["-nP", &format!("-iTCP:{port}"), "-sTCP:LISTEN"])
@@ -650,6 +877,34 @@ fn opencode_pid_on_port(port: u16) -> Option<u32> {
         let fields: Vec<&str> = line.split_whitespace().collect();
         if fields.len() >= 2 && fields[0].to_lowercase().contains("opencode") {
             return fields[1].parse().ok();
+        }
+    }
+    None
+}
+
+/// PID процесса opencode, слушающего заданный порт (через `netstat` + `tasklist`).
+#[cfg(target_os = "windows")]
+fn opencode_pid_on_port(port: u16) -> Option<u32> {
+    let pids = opencode_pids_windows();
+    if pids.is_empty() {
+        return None;
+    }
+    let out = Command::new("netstat")
+        .args(["-ano", "-p", "TCP"])
+        .output()
+        .ok()?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    for line in text.lines() {
+        let fields: Vec<&str> = line.split_whitespace().collect();
+        if fields.len() < 5 {
+            continue;
+        }
+        if !fields[3].eq_ignore_ascii_case("LISTENING") {
+            continue;
+        }
+        let pid: u32 = fields[4].parse().ok()?;
+        if pids.contains(&pid) && extract_port(fields[1]) == Some(port) {
+            return Some(pid);
         }
     }
     None
@@ -722,13 +977,72 @@ pub fn start_project(worktree: &str) -> Result<(), String> {
 pub fn stop_project(worktree: &str) -> Result<(), String> {
     let port = project_port(worktree);
     let pid = opencode_pid_on_port(port).ok_or("сервер для проекта не запущен")?;
+
+    #[cfg(target_os = "windows")]
+    let status = {
+        let pid_str = pid.to_string();
+        Command::new("taskkill")
+            .args(["/PID", pid_str.as_str(), "/F"])
+            .status()
+            .map_err(|e| e.to_string())?
+    };
+    #[cfg(not(target_os = "windows"))]
     let status = Command::new("kill")
         .arg(pid.to_string())
         .status()
         .map_err(|e| e.to_string())?;
+
     if status.success() {
         Ok(())
     } else {
         Err("не удалось остановить сервер".into())
+    }
+}
+
+/// Отвечает на запрос разрешения OpenCode (once / always / reject).
+pub fn reply_permission(port: u16, request_id: &str, reply: &str) -> Result<(), String> {
+    let client = http_client(Duration::from_secs(10));
+    let resp = client
+        .post(format!("{}/permission/{}/reply", base_url(port), request_id))
+        .json(&serde_json::json!({ "reply": reply }))
+        .send()
+        .map_err(|e| e.to_string())?;
+    if resp.status().is_success() {
+        Ok(())
+    } else {
+        Err(format!("HTTP {}", resp.status()))
+    }
+}
+
+/// Отвечает на вопрос OpenCode (answers — массив массивов выбранных меток).
+pub fn reply_question(
+    port: u16,
+    request_id: &str,
+    answers: Vec<Vec<String>>,
+) -> Result<(), String> {
+    let client = http_client(Duration::from_secs(10));
+    let resp = client
+        .post(format!("{}/question/{}/reply", base_url(port), request_id))
+        .json(&serde_json::json!({ "answers": answers }))
+        .send()
+        .map_err(|e| e.to_string())?;
+    if resp.status().is_success() {
+        Ok(())
+    } else {
+        Err(format!("HTTP {}", resp.status()))
+    }
+}
+
+/// Отклоняет вопрос OpenCode.
+pub fn reject_question(port: u16, request_id: &str) -> Result<(), String> {
+    let client = http_client(Duration::from_secs(10));
+    let resp = client
+        .post(format!("{}/question/{}/reject", base_url(port), request_id))
+        .send()
+        .map_err(|e| e.to_string())?;
+    if resp.status().is_success() {
+        Ok(())
+    } else {
+        Err(format!("HTTP {}", resp.status()))
     }
 }

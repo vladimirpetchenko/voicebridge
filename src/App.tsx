@@ -3,19 +3,43 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
+import { open } from "@tauri-apps/plugin-dialog";
+import {
+  Bot,
+  Check,
+  Copy,
+  FileText,
+  Globe,
+  Mic,
+  MicVocal,
+  MousePointer2,
+  Pencil,
+  Play,
+  Plus,
+  RefreshCw,
+  Search,
+  Settings,
+  Square,
+  Terminal,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
 import Markdown from "./Markdown";
+import ChatInput from "./ChatInput";
+import { playReceive, playSend } from "./sounds";
 import type {
   AppState,
   OpenCodeInstance,
   OpenCodeSession,
   Project,
-  WindowInfo,
   AppMode,
-  AppStatus,
   SttModelInfo,
   DownloadProgress,
   ToolAction,
   ConversationMessage,
+  PermissionRequest,
+  QuestionRequest,
+  SessionInfo,
 } from "./types";
 
 const DEFAULT_STATE: AppState = {
@@ -25,10 +49,14 @@ const DEFAULT_STATE: AppState = {
   recording: false,
   sensitivity: 1,
   silenceTimeout: 3,
+  pasteMethod: "clipboard",
+  pasteDelayMs: 500,
+  sendMode: "direct",
   language: "auto",
   selectedModel: null,
   transcript: "",
   response: "",
+  recordingSessionId: null,
   selectedMicrophone: null,
   selectedSession: null,
   activeInstance: null,
@@ -38,13 +66,6 @@ const DEFAULT_STATE: AppState = {
 const MODE_LABELS: Record<AppMode, string> = {
   opencode: "OpenCode",
   gui: "GUI",
-};
-
-const STATUS_LABELS: Record<AppStatus, string> = {
-  idle: "Ожидание",
-  recording: "Запись…",
-  processing: "Обработка…",
-  error: "Ошибка",
 };
 
 const SETTINGS_TABS = [
@@ -72,44 +93,14 @@ function relTime(ms: number): string {
   return `${Math.floor(h / 24)} дн назад`;
 }
 
-function toolIcon(name: string): string {
+function toolIcon(name: string): LucideIcon {
   const t = name.toLowerCase();
-  if (t.includes("edit") || t.includes("write") || t.includes("patch")) return "✏️";
-  if (t.includes("grep") || t.includes("search") || t.includes("glob")) return "🔍";
-  if (t.includes("bash") || t.includes("shell") || t.includes("exec")) return "💻";
-  if (t.includes("read")) return "📄";
-  if (t.includes("web") || t.includes("fetch")) return "🌐";
-  return "🔧";
-}
-
-function Waveform({ active, level }: { active: boolean; level: number | null }) {
-  const bars = 28;
-  const live = active && level !== null;
-  return (
-    <div
-      className={`waveform ${active ? "active" : ""} ${live ? "live" : ""}`}
-      aria-hidden
-    >
-      {Array.from({ length: bars }).map((_, i) => {
-        let height = 6;
-        if (live && level != null) {
-          const amp = 0.35 + 0.65 * Math.abs(Math.sin(i * 0.7 + 0.5));
-          height = Math.max(6, Math.min(30, 6 + level * amp * 34));
-        }
-        return (
-          <span
-            key={i}
-            className="wave-bar"
-            style={{ height: `${height}px`, animationDelay: `${(i % 7) * 0.09}s` }}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-function StatusDot({ status }: { status: AppStatus }) {
-  return <span className={`status-dot ${status}`} />;
+  if (t.includes("edit") || t.includes("write") || t.includes("patch")) return Pencil;
+  if (t.includes("grep") || t.includes("search") || t.includes("glob")) return Search;
+  if (t.includes("bash") || t.includes("shell") || t.includes("exec")) return Terminal;
+  if (t.includes("read")) return FileText;
+  if (t.includes("web") || t.includes("fetch")) return Globe;
+  return Wrench;
 }
 
 function MainApp() {
@@ -118,23 +109,14 @@ function MainApp() {
   const [notice, setNotice] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState<string>("Модели");
-  const [level, setLevel] = useState<number | null>(null);
   const [microphones, setMicrophones] = useState<string[]>([]);
   const [models, setModels] = useState<SttModelInfo[]>([]);
   const [downloads, setDownloads] = useState<Record<string, number>>({});
   const [instances, setInstances] = useState<OpenCodeInstance[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [liveText, setLiveText] = useState("");
-  const [tools, setTools] = useState<ToolAction[]>([]);
+  const [openSessionIds, setOpenSessionIds] = useState<string[]>([]);
   const [modelLoading, setModelLoading] = useState(false);
-  const prevStatus = useRef<AppStatus>("idle");
-  const selectedSessionIdRef = useRef<string | null>(null);
-  const recordingRef = useRef(false);
-  const silenceTimeoutRef = useRef(3);
-  const silenceSinceRef = useRef<number | null>(null);
-  const pressedRef = useRef(false);
-  const holdRef = useRef(false);
-  const holdTimerRef = useRef<number | null>(null);
+  const [opencodeBinary, setOpencodeBinary] = useState("");
 
   useEffect(() => {
     invoke<AppState>("get_app_state")
@@ -157,33 +139,16 @@ function MainApp() {
       .then(setProjects)
       .catch(() => {});
 
+    invoke<string[]>("list_open_session_ids")
+      .then(setOpenSessionIds)
+      .catch(() => {});
+
+    invoke<string>("get_opencode_binary")
+      .then(setOpencodeBinary)
+      .catch(() => {});
+
     const unlistenState = listen<AppState>("state-changed", (event) => {
-      prevStatus.current = event.payload.status;
-      const newSession = event.payload.selectedSession?.sessionId ?? null;
-      if (newSession !== selectedSessionIdRef.current) {
-        selectedSessionIdRef.current = newSession;
-        setLiveText("");
-        setTools([]);
-      }
       setState(event.payload);
-    });
-    const unlistenLevel = listen<number>("audio-level", (event) => {
-      const level = event.payload;
-      setLevel(level);
-      // Авто-остановка по тишине.
-      const timeout = silenceTimeoutRef.current;
-      if (timeout > 0 && recordingRef.current) {
-        if (level < 0.03) {
-          if (silenceSinceRef.current === null) {
-            silenceSinceRef.current = Date.now();
-          } else if (Date.now() - silenceSinceRef.current >= timeout * 1000) {
-            silenceSinceRef.current = null;
-            invoke("stop_recording").catch(() => {});
-          }
-        } else {
-          silenceSinceRef.current = null;
-        }
-      }
     });
     const unlistenProgress = listen<DownloadProgress>("model-download-progress", (event) => {
       setDownloads((d) => ({ ...d, [event.payload.modelId]: event.payload.percent }));
@@ -215,71 +180,28 @@ function MainApp() {
       setModelLoading(false);
       setError(`Ошибка загрузки модели: ${event.payload}`);
     });
-    const unlistenDelta = listen<{ sessionId: string; text: string }>(
-      "opencode-delta",
-      (event) => {
-        if (event.payload.sessionId === selectedSessionIdRef.current) {
-          setLiveText((t) => t + event.payload.text);
-        }
-      },
-    );
-    const unlistenTool = listen<{ sessionId: string } & ToolAction>(
-      "opencode-tool",
-      (event) => {
-        if (event.payload.sessionId !== selectedSessionIdRef.current) return;
-        const a: ToolAction = {
-          callId: event.payload.callId,
-          name: event.payload.name,
-          state: event.payload.state,
-        };
-        setTools((list) => {
-          const idx = list.findIndex((t) => t.callId === a.callId);
-          if (idx >= 0) {
-            const next = [...list];
-            next[idx] = a;
-            return next;
-          }
-          return [...list, a];
-        });
-      },
-    );
     const unlistenOcErr = listen<{ sessionId: string; error: string }>(
       "opencode-error",
       (event) => {
         setError(event.payload.error);
       },
     );
+    const unlistenOpen = listen<string[]>("sessions-open-changed", (event) => {
+      setOpenSessionIds(event.payload);
+    });
 
     return () => {
       unlistenState.then((f) => f());
-      unlistenLevel.then((f) => f());
       unlistenProgress.then((f) => f());
       unlistenDone.then((f) => f());
       unlistenDlErr.then((f) => f());
       unlistenLoading.then((f) => f());
       unlistenLoaded.then((f) => f());
       unlistenLoadErr.then((f) => f());
-      unlistenDelta.then((f) => f());
-      unlistenTool.then((f) => f());
       unlistenOcErr.then((f) => f());
+      unlistenOpen.then((f) => f());
     };
   }, []);
-
-  const isRecording = state.status === "recording" || state.recording;
-
-  useEffect(() => {
-    recordingRef.current = isRecording;
-    silenceTimeoutRef.current = state.silenceTimeout;
-    if (!isRecording) {
-      setLevel(null);
-      silenceSinceRef.current = null;
-    }
-    if (isRecording) {
-      setLiveText("");
-      setTools([]);
-      silenceSinceRef.current = null;
-    }
-  }, [isRecording, state.silenceTimeout]);
 
   useEffect(() => {
     if (!notice) return;
@@ -295,58 +217,12 @@ function MainApp() {
       invoke<Project[]>("list_projects")
         .then(setProjects)
         .catch(() => {});
+      invoke<string[]>("list_open_session_ids")
+        .then(setOpenSessionIds)
+        .catch(() => {});
     }, 5000);
     return () => clearInterval(t);
   }, []);
-
-  const toggleRecording = useCallback(() => {
-    invoke("toggle_recording").catch((e) => setError(String(e)));
-  }, []);
-
-  const startRecording = useCallback(() => {
-    invoke("start_recording").catch((e) => setError(String(e)));
-  }, []);
-
-  const stopRecording = useCallback(() => {
-    invoke("stop_recording").catch((e) => setError(String(e)));
-  }, []);
-
-  const onRecordPointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      try {
-        e.currentTarget.setPointerCapture(e.pointerId);
-      } catch {
-        /* ignore */
-      }
-      pressedRef.current = true;
-      holdRef.current = false;
-      if (holdTimerRef.current !== null) {
-        clearTimeout(holdTimerRef.current);
-      }
-      holdTimerRef.current = window.setTimeout(() => {
-        if (pressedRef.current && !recordingRef.current) {
-          holdRef.current = true;
-          startRecording();
-        }
-      }, 300);
-    },
-    [startRecording],
-  );
-
-  const onRecordPointerUp = useCallback(() => {
-    if (!pressedRef.current) return;
-    pressedRef.current = false;
-    if (holdTimerRef.current !== null) {
-      clearTimeout(holdTimerRef.current);
-      holdTimerRef.current = null;
-    }
-    if (holdRef.current) {
-      holdRef.current = false;
-      stopRecording();
-    } else {
-      toggleRecording();
-    }
-  }, [stopRecording, toggleRecording]);
 
   const setMode = useCallback((mode: AppMode) => {
     invoke("set_mode", { mode }).catch((e) => setError(String(e)));
@@ -383,6 +259,11 @@ function MainApp() {
       sessionId: session.id,
       title: session.title,
     }).catch((e) => setError(String(e)));
+    invoke("open_response_window", {
+      sessionId: session.id,
+      title: session.title,
+      port: inst.port,
+    }).catch((e) => setError(String(e)));
   }, []);
 
   const selectInstance = useCallback((inst: OpenCodeInstance) => {
@@ -396,6 +277,11 @@ function MainApp() {
         port: inst.port,
         sessionId: latest.id,
         title: latest.title,
+      }).catch((e) => setError(String(e)));
+      invoke("open_response_window", {
+        sessionId: latest.id,
+        title: latest.title,
+        port: inst.port,
       }).catch((e) => setError(String(e)));
     } else {
       invoke("select_opencode_instance", {
@@ -440,14 +326,37 @@ function MainApp() {
       .catch((e) => setError(String(e)));
   }, []);
 
-  const openResponseWindow = useCallback(() => {
-    if (!state.selectedSession) return;
-    invoke("open_response_window", {
-      sessionId: state.selectedSession.sessionId,
-      title: state.selectedSession.title,
-      port: state.selectedSession.port,
-    }).catch((e) => setError(String(e)));
-  }, [state.selectedSession]);
+  const newInstance = useCallback(async () => {
+    const dir = await open({ directory: true, multiple: false, title: "Выберите рабочую папку проекта" });
+    const path = typeof dir === "string" ? dir : null;
+    if (!path) return;
+    invoke<Project[]>("start_project", { worktree: path })
+      .then((list) => {
+        setProjects(list);
+        invoke<OpenCodeInstance[]>("list_opencode_sessions")
+          .then(setInstances)
+          .catch(() => {});
+      })
+      .catch((e) => setError(String(e)));
+   }, []);
+
+  const setPasteMethod = useCallback((method: string) => {
+    invoke("set_paste_method", { method }).catch((e) => setError(String(e)));
+  }, []);
+
+  const setPasteDelay = useCallback((ms: number) => {
+    invoke("set_paste_delay", { ms }).catch((e) => setError(String(e)));
+  }, []);
+
+  const setSendMode = useCallback((mode: string) => {
+    invoke("set_send_mode", { mode }).catch((e) => setError(String(e)));
+  }, []);
+
+  const refreshBinary = useCallback(() => {
+    invoke<string>("get_opencode_binary")
+      .then(setOpencodeBinary)
+      .catch(() => {});
+  }, []);
 
   const refreshMicrophones = useCallback(() => {
     invoke<string[]>("list_microphones")
@@ -461,14 +370,7 @@ function MainApp() {
       .catch((e) => setError(String(e)));
   }, []);
 
-  const refreshWindows = useCallback(() => {
-    invoke<WindowInfo[]>("list_windows")
-      .then(() => {})
-      .catch((e) => setError(String(e)));
-  }, []);
-
   const anyDownloaded = models.some((m) => m.downloaded);
-  const responseText = state.status === "processing" ? liveText : state.response;
 
   const selectedModelInfo = models.find((m) => m.id === state.selectedModel);
   const modelName = selectedModelInfo?.name ?? state.selectedModel ?? "Модель";
@@ -495,7 +397,7 @@ function MainApp() {
     <main className="app">
       <header className="app-header">
         <div className="app-title">
-          <span className="logo">🎙️</span>
+          <MicVocal className="logo" size={22} />
           <h1>VoiceBridge</h1>
         </div>
         <div className="header-actions">
@@ -516,7 +418,7 @@ function MainApp() {
             title="Настройки"
             onClick={() => setShowSettings((s) => !s)}
           >
-            ⚙️
+            <Settings size={18} />
           </button>
         </div>
       </header>
@@ -530,44 +432,24 @@ function MainApp() {
             className={`mode-btn ${state.mode === mode ? "active" : ""}`}
             onClick={() => setMode(mode)}
           >
-            {mode === "opencode" ? "🤖 OpenCode" : "🖱️ GUI"}
+            {mode === "opencode" ? <Bot size={16} /> : <MousePointer2 size={16} />}
+            <span>{mode === "opencode" ? "OpenCode" : "GUI"}</span>
           </button>
         ))}
-      </section>
-
-      <section className="recorder">
-        <button
-          className={`record-btn ${isRecording ? "recording" : ""}`}
-          onPointerDown={onRecordPointerDown}
-          onPointerUp={onRecordPointerUp}
-          onPointerCancel={onRecordPointerUp}
-          aria-label={isRecording ? "Остановить запись" : "Начать запись"}
-        >
-          <span className="record-btn-icon">{isRecording ? "⏹" : "🎤"}</span>
-        </button>
-        <div className="record-hint">
-          {isRecording
-            ? "Говорите… (тап — стоп, или держите)"
-            : "Тап — запись, удержание — говорить"}
-        </div>
-        <Waveform active={isRecording} level={level} />
-      </section>
-
-      <section className="status-bar">
-        <StatusDot status={state.status} />
-        <span className="status-text">
-          {STATUS_LABELS[state.status]}
-          {state.statusMessage ? ` — ${state.statusMessage}` : ""}
-        </span>
       </section>
 
       {state.mode === "opencode" && (
         <section className="projects-panel">
           <div className="panel-header">
             <span>Проекты</span>
-            <button className="link-btn" onClick={refreshProjects} title="Обновить проекты">
-              ⟳
-            </button>
+            <div className="panel-header-actions">
+              <button className="link-btn" onClick={newInstance} title="Новый инстанс (выбрать папку)">
+                <Plus size={13} /> Новый
+              </button>
+              <button className="link-btn" onClick={refreshProjects} title="Обновить проекты">
+                <RefreshCw size={13} />
+              </button>
+            </div>
           </div>
           <div className="projects-list">
             {projects.length === 0 && (
@@ -588,7 +470,7 @@ function MainApp() {
                     onClick={() => stopProject(p.worktree)}
                     title="Остановить сервер"
                   >
-                    ■
+                    <Square size={12} fill="currentColor" />
                   </button>
                 ) : (
                   <button
@@ -596,7 +478,7 @@ function MainApp() {
                     onClick={() => startProject(p.worktree)}
                     title="Запустить сервер OpenCode"
                   >
-                    ▶
+                    <Play size={12} fill="currentColor" />
                   </button>
                 )}
               </div>
@@ -610,7 +492,7 @@ function MainApp() {
           <div className="panel-header">
             <span>Сессии OpenCode</span>
             <button className="link-btn" onClick={refreshInstances} title="Обновить сессии">
-              ⟳ Обновить
+              <RefreshCw size={13} /> Обновить
             </button>
           </div>
           <div className="sessions-list">
@@ -644,6 +526,7 @@ function MainApp() {
                     const active =
                       state.selectedSession?.sessionId === session.id &&
                       state.selectedSession?.instanceId === inst.id;
+                    const isOpen = openSessionIds.includes(session.id);
                     return (
                       <button
                         key={session.id}
@@ -654,6 +537,9 @@ function MainApp() {
                         <span className="session-title" title={session.title}>
                           {session.title || "Без названия"}
                         </span>
+                        {isOpen && (
+                          <span className="session-open-badge">открыта</span>
+                        )}
                         <span className="session-time">{relTime(session.updatedAt)}</span>
                       </button>
                     );
@@ -665,86 +551,39 @@ function MainApp() {
         </section>
       )}
 
-      <section className="panels">
-        <div className="panel">
-          <div className="panel-header">
-            <span>Распознанный текст</span>
-            <span className="panel-badge">{state.mode === "opencode" ? "→ OpenCode" : "→ вставка"}</span>
-          </div>
-          <div className="panel-body transcript">
-            {state.transcript || "Здесь появится распознанный текст…"}
-          </div>
-        </div>
-
-        <div className="panel">
-          <div className="panel-header">
-            <span>
-              {state.mode === "opencode" ? "Ответ OpenCode" : "Статус вставки"}
-            </span>
-            <div className="panel-header-actions">
-              {state.mode === "opencode" && state.selectedSession && (
-                <button
-                  className="link-btn"
-                  onClick={openResponseWindow}
-                  title="Развернуть в отдельном окне (стриминг в реальном времени)"
-                >
-                  ⛶ Развернуть
-                </button>
-              )}
-              {state.mode === "gui" && (
-                <button className="link-btn" onClick={refreshWindows} title="Обновить окна">
-                  ⟳ Окна
-                </button>
-              )}
-            </div>
-          </div>
-          <div className="panel-body response">
-            {tools.length > 0 && (
-              <div className="tool-list">
-                {tools.map((t) => (
-                  <span key={t.callId} className={`tool-chip ${t.state}`}>
-                    {toolIcon(t.name)} {t.name || "инструмент"}
-                  </span>
-                ))}
-              </div>
-            )}
-            {responseText ? (
-              <Markdown>{responseText}</Markdown>
-            ) : (
-              <span className="response-placeholder">
-                {state.status === "processing"
-                  ? "OpenCode думает…"
-                  : "Ответ появится здесь…"}
-              </span>
-            )}
-          </div>
-        </div>
-      </section>
-
       <footer className="app-footer">
-        <div className="footer-left">
-          <span className="shortcut-hint">⌘⇧V — запись</span>
-          <button
-            className="mic-hint"
-            onClick={() => {
-              setSettingsTab("Микрофон");
-              setShowSettings(true);
-            }}
-            title="Выбрать микрофон"
-          >
-            🎤 {state.selectedMicrophone ?? "Микрофон по умолчанию"}
-          </button>
-        </div>
-        <span className="target-hint">
+        <span className="shortcut-hint" title="Глобальная горячая клавиша записи">
+          ⌘⇧V
+        </span>
+        <button
+          className="mic-hint"
+          onClick={() => {
+            setSettingsTab("Микрофон");
+            setShowSettings(true);
+          }}
+          title={`Микрофон: ${state.selectedMicrophone ?? "по умолчанию"}`}
+        >
+          <Mic size={13} /> {state.selectedMicrophone ?? "По умолчанию"}
+        </button>
+        <span
+          className="target-hint"
+          title={
+            state.mode === "opencode"
+              ? state.selectedSession
+                ? `Сессия: ${state.selectedSession.title}`
+                : state.activeInstance
+                  ? `Экземпляр: ${state.activeInstance.name}`
+                  : "Чат не выбран"
+              : "GUI-режим"
+          }
+        >
           {state.mode === "opencode"
             ? state.selectedSession
-              ? `Сессия: ${state.selectedSession.title}`
+              ? state.selectedSession.title
               : state.activeInstance
-                ? `Экземпляр: ${state.activeInstance.name}`
-                : "Экземпляр не выбран"
-            : state.selectedWindow
-              ? `Окно: ${state.selectedWindow.appName}`
-              : "Окно: не выбрано"}
+                ? state.activeInstance.name
+                : "чат не выбран"
+            : state.selectedWindow?.appName ?? "GUI"}
         </span>
       </footer>
 
@@ -811,7 +650,7 @@ function MainApp() {
                           {!m.supported ? (
                             <span className="badge-soon">Скоро</span>
                           ) : m.downloaded ? (
-                            <span className="badge-done">✓ Скачана</span>
+                            <span className="badge-done"><Check size={12} /> Скачана</span>
                           ) : downloading ? (
                             <div className="progress">
                               <div
@@ -837,7 +676,7 @@ function MainApp() {
                 </div>
 
                 <button className="btn" onClick={refreshModels}>
-                  ⟳ Обновить
+                  <RefreshCw size={14} /> Обновить
                 </button>
               </div>
             )}
@@ -860,7 +699,7 @@ function MainApp() {
                       ))}
                     </select>
                     <button className="icon-btn" onClick={refreshMicrophones} title="Обновить список">
-                      ⟳
+                      <RefreshCw size={15} />
                     </button>
                   </div>
                 </label>
@@ -895,18 +734,102 @@ function MainApp() {
               </div>
             )}
 
-            {settingsTab !== "Микрофон" && settingsTab !== "Модели" && (
-              <p className="settings-placeholder">
-                Раздел «{settingsTab}» появится на следующих этапах разработки.
-              </p>
+            {settingsTab === "OpenCode" && (
+              <div className="settings-content">
+                <label className="field">
+                  <span className="field-label">Режим отправки распознанного текста</span>
+                  <select
+                    className="select"
+                    value={state.sendMode}
+                    onChange={(e) => setSendMode(e.target.value)}
+                  >
+                    <option value="direct">Сразу в чат (разговор)</option>
+                    <option value="confirm">Предпросмотр перед отправкой</option>
+                  </select>
+                </label>
+
+                <label className="field">
+                  <span className="field-label">Исполняемый файл opencode</span>
+                  <div className="field-row">
+                    <input className="select" value={opencodeBinary} readOnly />
+                    <button className="icon-btn" onClick={refreshBinary} title="Пересканировать">
+                      <RefreshCw size={15} />
+                    </button>
+                  </div>
+                </label>
+                <div className="hint-banner">
+                  Запущенные серверы OpenCode находятся автоматически (по процессам
+                  и портам 4096/12000/3000/17000) и обновляются каждые 5 секунд.
+                </div>
+              </div>
+            )}
+
+            {settingsTab === "Вставка" && (
+              <div className="settings-content">
+                <label className="field">
+                  <span className="field-label">Способ вставки</span>
+                  <select
+                    className="select"
+                    value={state.pasteMethod}
+                    onChange={(e) => setPasteMethod(e.target.value)}
+                  >
+                    <option value="clipboard">Буфер обмена + Ctrl/Cmd+V (быстро)</option>
+                    <option value="keys">Симуляция нажатий клавиш (медленно, везде)</option>
+                    <option value="accessibility">Accessibility API (экспериментально)</option>
+                  </select>
+                </label>
+                <label className="field">
+                  <span className="field-label">
+                    Задержка перед вставкой: {state.pasteDelayMs} мс
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={3000}
+                    step={100}
+                    value={state.pasteDelayMs}
+                    onChange={(e) => setPasteDelay(parseInt(e.target.value, 10))}
+                  />
+                </label>
+              </div>
+            )}
+
+            {settingsTab === "Горячие клавиши" && (
+              <div className="settings-content">
+                <div className="field">
+                  <span className="field-label">Запись (глобально)</span>
+                  <span className="shortcut-hint">⌘⇧V / Ctrl+Shift+V</span>
+                </div>
+                <div className="hint-banner">
+                  Настройка произвольных комбинаций появится позже.
+                </div>
+              </div>
+            )}
+
+            {settingsTab === "О программе" && (
+              <div className="settings-content">
+                <p>VoiceBridge — голосовой ассистент для разработчиков.</p>
+                <p>Локальное распознавание речи (whisper.cpp), управление OpenCode.</p>
+                <p className="about-version">Версия 0.1.0 · Rust + Tauri · React</p>
+                <p>
+                  <a
+                    className="link"
+                    href="https://github.com/vladimirpetchenko/voicebridge"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    github.com/vladimirpetchenko/voicebridge
+                  </a>
+                </p>
+              </div>
             )}
 
             <button className="btn" onClick={() => setShowSettings(false)}>
               Закрыть
             </button>
           </div>
-        </div>
-      )}
+         </div>
+       )}
 
       {notice && <div className="notice-toast">{notice}</div>}
 
@@ -921,7 +844,12 @@ function MainApp() {
 
 function ResponseView() {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
-  const [copied, setCopied] = useState(false);
+  const [tools, setTools] = useState<ToolAction[]>([]);
+  const [permissions, setPermissions] = useState<PermissionRequest[]>([]);
+  const [questions, setQuestions] = useState<QuestionRequest[]>([]);
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [info, setInfo] = useState<SessionInfo>({ title: "", project: "" });
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   const sessionId = useMemo(() => {
     try {
@@ -936,10 +864,16 @@ function ResponseView() {
       .then(setMessages)
       .catch(() => {});
 
+    invoke<SessionInfo>("get_session_info")
+      .then(setInfo)
+      .catch(() => {});
+
     const unlistenUser = listen<{ sessionId: string; text: string }>(
       "opencode-user",
       (e) => {
         if (e.payload.sessionId !== sessionId) return;
+        playSend();
+        setTools([]);
         setMessages((m) => [
           ...m,
           { role: "user", text: e.payload.text },
@@ -963,49 +897,171 @@ function ResponseView() {
         });
       },
     );
+    const unlistenDone = listen<{ sessionId: string }>("opencode-done", (e) => {
+      if (e.payload.sessionId !== sessionId) return;
+      playReceive();
+    });
+    const unlistenTool = listen<{ sessionId: string } & ToolAction>(
+      "opencode-tool",
+      (e) => {
+        if (e.payload.sessionId !== sessionId) return;
+        const a: ToolAction = {
+          callId: e.payload.callId,
+          name: e.payload.name,
+          state: e.payload.state,
+        };
+        setTools((list) => {
+          const idx = list.findIndex((t) => t.callId === a.callId);
+          if (idx >= 0) {
+            const next = [...list];
+            next[idx] = a;
+            return next;
+          }
+          return [...list, a];
+        });
+      },
+    );
+    const unlistenPermission = listen<PermissionRequest>(
+      "opencode-permission",
+      (e) => {
+        if (e.payload.sessionId !== sessionId) return;
+        setPermissions((list) => [...list, e.payload]);
+      },
+    );
+    const unlistenQuestion = listen<QuestionRequest>(
+      "opencode-question",
+      (e) => {
+        if (e.payload.sessionId !== sessionId) return;
+        setQuestions((list) => [...list, e.payload]);
+      },
+    );
 
     return () => {
       unlistenUser.then((f) => f());
       unlistenDelta.then((f) => f());
+      unlistenDone.then((f) => f());
+      unlistenTool.then((f) => f());
+      unlistenPermission.then((f) => f());
+      unlistenQuestion.then((f) => f());
     };
   }, [sessionId]);
 
-  const copy = useCallback(async () => {
-    const text = messages
-      .filter((m) => m.role === "assistant")
-      .map((m) => m.text)
-      .join("\n\n");
+  useEffect(() => {
+    bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight });
+  }, [messages, tools, permissions, questions]);
+
+  const copyMessage = useCallback(async (text: string, idx: number) => {
     try {
       await writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      setCopiedIdx(idx);
+      setTimeout(() => setCopiedIdx(null), 1500);
     } catch (e) {
       console.error("copy failed", e);
     }
-  }, [messages]);
+  }, []);
 
   const close = useCallback(() => {
     invoke("close_response_window").catch(() => {});
   }, []);
 
+  const replyPermission = useCallback((req: PermissionRequest, reply: string) => {
+    invoke("reply_permission", { port: req.port, requestId: req.requestId, reply }).catch(
+      () => {},
+    );
+    setPermissions((list) => list.filter((p) => p.requestId !== req.requestId));
+  }, []);
+
+  const answerQuestion = useCallback((req: QuestionRequest, answers: string[][]) => {
+    invoke("reply_question", { port: req.port, requestId: req.requestId, answers }).catch(
+      () => {},
+    );
+    setQuestions((list) => list.filter((q) => q.requestId !== req.requestId));
+  }, []);
+
+  const rejectQuestion = useCallback((req: QuestionRequest) => {
+    invoke("reject_question", { port: req.port, requestId: req.requestId }).catch(() => {});
+    setQuestions((list) => list.filter((q) => q.requestId !== req.requestId));
+  }, []);
+
   return (
     <main className="response-view">
       <header className="response-view-header">
-        <h1>Ответ OpenCode</h1>
+        <div className="chat-title">
+          <h1>{info.title || "OpenCode"}</h1>
+          {info.project && <span className="chat-project">{info.project}</span>}
+        </div>
         <div className="header-actions">
-          <button className="btn" onClick={copy}>
-            {copied ? "Скопировано ✓" : "Копировать"}
-          </button>
           <button className="btn" onClick={close}>
             Закрыть
           </button>
         </div>
       </header>
-      <div className="response-view-body">
+      <div className="response-view-body" ref={bodyRef}>
+        {permissions.map((p) => (
+          <div key={p.requestId} className="action-card">
+            <div className="action-card-title">OpenCode запрашивает разрешение</div>
+            <div className="action-desc">
+              Инструмент: <code>{p.permission || "?"}</code>
+            </div>
+            {p.patterns.length > 0 && (
+              <pre className="action-patterns">{p.patterns.join("\n")}</pre>
+            )}
+            <div className="action-buttons">
+              <button className="btn play" onClick={() => replyPermission(p, "once")}>
+                Разрешить
+              </button>
+              <button className="btn" onClick={() => replyPermission(p, "always")}>
+                Всегда
+              </button>
+              <button className="btn stop" onClick={() => replyPermission(p, "reject")}>
+                Запретить
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {questions.map((q) => (
+          <div key={q.requestId} className="action-card">
+            <div className="action-card-title">{q.questions[0]?.header || "Вопрос OpenCode"}</div>
+            <div className="action-desc">{q.questions[0]?.question || ""}</div>
+            <div className="action-options">
+              {(q.questions[0]?.options ?? []).map((opt) => (
+                <button
+                  key={opt.label}
+                  className="btn"
+                  onClick={() => answerQuestion(q, [[opt.label]])}
+                  title={opt.description}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <div className="action-buttons">
+              <button className="btn stop" onClick={() => rejectQuestion(q)}>
+                Отклонить
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {tools.length > 0 && (
+          <div className="tool-list response-tools">
+            {tools.map((t) => (
+              <span key={t.callId} className={`tool-chip ${t.state}`}>
+                {(() => {
+                  const Icon = toolIcon(t.name);
+                  return <Icon size={13} />;
+                })()}{" "}
+                {t.name || "инструмент"}
+              </span>
+            ))}
+          </div>
+        )}
+
         {messages.length === 0 ? (
           <p className="response-empty">
             Скажите фразу в VoiceBridge — ответ OpenCode появится здесь в реальном
-            времени.
+            времени, вместе с инструментами и запросами действий.
           </p>
         ) : (
           messages.map((m, i) =>
@@ -1016,13 +1072,33 @@ function ResponseView() {
               </div>
             ) : (
               <div key={i} className="chat-assistant">
-                <span className="chat-role">OpenCode</span>
-                <Markdown>{m.text || "*…*"}</Markdown>
+                <div className="chat-role-row">
+                  <span className="chat-role">OpenCode</span>
+                  {m.text && (
+                    <button
+                      className="msg-copy-btn"
+                      onClick={() => copyMessage(m.text, i)}
+                      title="Копировать сообщение"
+                    >
+                      {copiedIdx === i ? <Check size={13} /> : <Copy size={13} />}
+                    </button>
+                  )}
+                </div>
+                {m.text ? (
+                  <Markdown>{m.text}</Markdown>
+                ) : (
+                  <span className="thinking-dots" aria-label="OpenCode думает">
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                )}
               </div>
             ),
           )
         )}
       </div>
+      <ChatInput sessionId={sessionId} />
     </main>
   );
 }

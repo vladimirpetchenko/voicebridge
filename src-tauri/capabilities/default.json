@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Default capability for the main window",
   "windows": ["*"],
-  "permissions": ["core:default", "clipboard-manager:allow-write-text"]
+  "permissions": ["core:default", "clipboard-manager:allow-write-text", "dialog:allow-open"]
 }

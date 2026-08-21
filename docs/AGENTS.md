@@ -22,15 +22,21 @@ npm run build            # tsc + vite build
 
 ## Где что лежит
 
-- Фронтенд целиком — `src/App.tsx` (это один большой файл: главное окно
-  `MainApp`, окно ответа `ResponseView`). Компонент markdown — `src/Markdown.tsx`.
+- Фронтенд:
+  - `src/App.tsx` — главное окно `MainApp` (лаунчер: проекты + сессии) и окно
+    чата `ResponseView` (шапка с названием сессии/проекта, диалог, инструменты,
+    действия).
+  - `src/ChatInput.tsx` — панель ввода в чате: текстовое поле + отправка +
+    голосовая кнопка (тап/удержание/тишина), режимы отправки.
+  - `src/Markdown.tsx` — рендер markdown.
 - Бэкенд:
   - `src-tauri/src/commands.rs` — все `#[tauri::command]` (мост в фронтенд).
   - `src-tauri/src/state.rs` — `AppState`, `ConversationStore`, типы.
+  - `src-tauri/src/logging.rs` — файловый логгер + перехват паник.
   - `src-tauri/src/modules/audio.rs` — cpal, буфер, ресемплинг.
   - `src-tauri/src/modules/stt.rs` — whisper, модели, скачивание.
   - `src-tauri/src/modules/opencode.rs` — OpenCode (обнаружение, сессии,
-    проекты, стриминг SSE, диалоги).
+    проекты, стриминг SSE, диалоги, permission/question).
 - Проверочные бинарники — `src-tauri/examples/*.rs` (запуск:
   `cargo run --example opencode_check`).
 
@@ -38,25 +44,30 @@ npm run build            # tsc + vite build
 
 - Команды (`invoke`): `get_app_state`, `set_mode`, `toggle_recording`,
   `start_recording`, `stop_recording`, `list_microphones`, `select_microphone`,
-  `set_sensitivity`, `set_silence_timeout`, `list_opencode_sessions`,
+  `set_sensitivity`, `set_silence_timeout`, `set_paste_method`,
+  `set_paste_delay`, `set_send_mode`, `send_text`, `list_opencode_sessions`,
   `select_opencode_session`, `select_opencode_instance`, `list_projects`,
   `start_project`, `stop_project`, `get_models`, `download_model`,
   `select_stt_model`, `set_language`, `open_response_window`,
-  `get_conversation`, `close_response_window`, `quit_app`.
+  `get_conversation`, `get_session_info`, `close_response_window`,
+  `list_open_session_ids`, `reply_permission`, `reply_question`,
+  `reject_question`, `get_opencode_binary`, `quit_app`.
 - События (`listen`): `state-changed` (AppState), `audio-level` (number),
   `model-download-progress/-done/-error`, `model-loading/-loaded/-load-error`,
+  `sessions-open-changed` (Vec<String> — id сессий с открытым окном чата),
   `opencode-user {sessionId,text}`, `opencode-delta {sessionId,text}`,
   `opencode-tool {sessionId,callId,name,state}`, `opencode-error {sessionId,error}`,
-  `opencode-done {sessionId}`.
+  `opencode-done {sessionId}`, `opencode-permission {sessionId,requestId,port,permission,patterns}`,
+  `opencode-question {sessionId,requestId,port,questions}`.
 
 Tauri сам мапит camelCase (JS) ↔ snake_case (Rust) в аргументах команд.
 
 ## Критичные грабли (не наступай снова)
 
-1. **SDKROOT**: в `src-tauri/.cargo/config.toml` принудительно `SDKROOT=""`.
-   На машине автора глобальный `SDKROOT` указывал на iPhoneOS SDK, из-за чего
-   сборка whisper.cpp падала на `FindBLAS` (`BLAS not found`). Не убирай эту
-   настройку.
+1. **SDKROOT + MACOSX_DEPLOYMENT_TARGET**: в `src-tauri/.cargo/config.toml`
+   принудительно `SDKROOT=""` (иначе при `SDKROOT=iPhoneOS` FindBLAS падает) и
+   `MACOSX_DEPLOYMENT_TARGET=10.15` (иначе в новых Xcode whisper.cpp падает на
+   `std::filesystem`, см. CI). Не убирай эти настройки.
 2. **SSE OpenCode**: реальные типы событий — `message.part.delta`,
    `message.part.updated`, `session.idle` (см. `docs/OPENCODE.md`), а НЕ
    `session.next.*` из OpenAPI-доки.
@@ -85,11 +96,18 @@ Tauri сам мапит camelCase (JS) ↔ snake_case (Rust) в аргумент
 
 ## Текущее состояние / TODO
 
-Реализовано: трей, хоткей, запись (тап/удержание + авто-стоп по тишине), STT
-(whisper + модели), OpenCode (обнаружение, сессии, проекты, стриминг, история,
-развёрнутое окно с markdown).
+Реализовано: трей, хоткей, STT (whisper + модели), OpenCode (обнаружение,
+сессии, проекты, новый инстанс с выбором папки, стриминг, история, действия
+permission/question). Главное окно — лаунчер, окно чата — основной интерфейс:
+шапка (название сессии + проект), диалог с markdown, панель ввода (текст +
+отправка + голос с тап/удержание/авто-стоп), режимы отправки (сразу в чат /
+предпросмотр), индикатор текущего режима в чате. Обнаружение/остановка OpenCode
+работает и на Windows (`netstat`+`tasklist` для портов/PID, `taskkill` для
+остановки, `where` для поиска бинаря), подсветка синтаксиса в markdown
+(`rehype-highlight` + тёмная тема hljs).
 
 Не сделано: GUI-автоматизация (`modules/automation.rs` — заглушка, нужны
-системные API: macOS CGWindowList, Windows EnumWindows), Qwen3-ASR (whisper.cpp
-не поддерживает), подсветка синтаксиса в markdown, автообновления,
-Windows-обнаружение OpenCode (сейчас `lsof` — только macOS/Linux).
+системные API: macOS CGWindowList, Windows EnumWindows; настройки вставки в
+`AppState` уже есть), Qwen3-ASR (whisper.cpp не поддерживает), автообновления,
+запуск opencode на Windows через `.cmd`-шим (`cmd /C`), если `where` вернул
+`.cmd`.

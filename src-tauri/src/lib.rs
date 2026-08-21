@@ -18,6 +18,7 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let handle = app.handle().clone();
 
@@ -44,6 +45,9 @@ pub fn run() {
                 s.mode = loaded.mode;
                 s.sensitivity = loaded.sensitivity;
                 s.silence_timeout = loaded.silence_timeout;
+                s.paste_method = loaded.paste_method;
+                s.paste_delay_ms = loaded.paste_delay_ms;
+                s.send_mode = loaded.send_mode;
                 s.language = loaded.language;
                 s.selected_model = loaded.selected_model;
                 s.selected_microphone = loaded.selected_microphone;
@@ -75,6 +79,14 @@ pub fn run() {
                     let _ = window.hide();
                 }
             }
+            if let tauri::WindowEvent::Destroyed = event {
+                if let Some(session_id) = window.label().strip_prefix("response-") {
+                    crate::modules::opencode::mark_session_closed(
+                        window.app_handle(),
+                        session_id,
+                    );
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_app_state,
@@ -86,6 +98,15 @@ pub fn run() {
             commands::select_microphone,
             commands::set_sensitivity,
             commands::set_silence_timeout,
+            commands::set_paste_method,
+            commands::set_paste_delay,
+            commands::set_send_mode,
+            commands::send_text,
+            commands::get_session_info,
+            commands::get_opencode_binary,
+            commands::reply_permission,
+            commands::reply_question,
+            commands::reject_question,
             commands::list_opencode_sessions,
             commands::select_opencode_session,
             commands::select_opencode_instance,
@@ -100,6 +121,7 @@ pub fn run() {
             commands::open_response_window,
             commands::get_conversation,
             commands::close_response_window,
+            commands::list_open_session_ids,
             commands::quit_app
         ])
         .run(tauri::generate_context!())

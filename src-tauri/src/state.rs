@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -72,11 +72,18 @@ pub struct AppState {
     pub recording: bool,
     pub sensitivity: f32,
     pub silence_timeout: f32,
+    pub paste_method: String,
+    pub paste_delay_ms: u32,
+    pub send_mode: String,
     pub language: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_model: Option<String>,
     pub transcript: String,
     pub response: String,
+    /// Сессия, в которую адресована текущая запись/распознанный текст.
+    /// None — запись не из окна чата (хоткей/трей), берём selected_session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recording_session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_microphone: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -96,10 +103,14 @@ impl Default for AppState {
             recording: false,
             sensitivity: 1.0,
             silence_timeout: 3.0,
+            paste_method: "clipboard".into(),
+            paste_delay_ms: 500,
+            send_mode: "direct".into(),
             language: "auto".into(),
             selected_model: None,
             transcript: String::new(),
             response: String::new(),
+            recording_session_id: None,
             selected_microphone: None,
             selected_session: None,
             active_instance: None,
@@ -123,10 +134,21 @@ pub struct ConversationMessage {
     pub text: String,
 }
 
+/// Информация о сессии для шапки окна чата.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionInfo {
+    pub title: String,
+    pub project: String,
+}
+
 /// Диалоги по сессиям OpenCode (ключ — session_id). Хранится в памяти.
 pub struct ConversationStore {
     pub conversations: Mutex<HashMap<String, Vec<ConversationMessage>>>,
     pub ports: Mutex<HashMap<String, u16>>,
+    pub titles: Mutex<HashMap<String, String>>,
+    /// Сессии, для которых сейчас открыто окно чата.
+    pub open_sessions: Mutex<HashSet<String>>,
 }
 
 impl Default for ConversationStore {
@@ -134,6 +156,8 @@ impl Default for ConversationStore {
         Self {
             conversations: Mutex::new(HashMap::new()),
             ports: Mutex::new(HashMap::new()),
+            titles: Mutex::new(HashMap::new()),
+            open_sessions: Mutex::new(HashSet::new()),
         }
     }
 }

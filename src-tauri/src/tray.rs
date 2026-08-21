@@ -46,7 +46,7 @@ fn toggle_window(app: &AppHandle) {
 pub fn handle_menu_event(app: &AppHandle, event: tauri::menu::MenuEvent) {
     match event.id().as_ref() {
         "show_hide" => toggle_window(app),
-        "start_stop" => crate::commands::handle_toggle_recording(app),
+        "start_stop" => crate::commands::handle_toggle_recording(app, None),
         "settings" => {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
