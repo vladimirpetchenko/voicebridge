@@ -142,6 +142,19 @@ pub struct SessionInfo {
     pub project: String,
 }
 
+/// Использование токенов/средств сессии (строка состояния в чате).
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionUsage {
+    pub tokens_input: u64,
+    pub tokens_output: u64,
+    pub tokens_reasoning: u64,
+    pub tokens_total: u64,
+    pub cost: f64,
+    pub context_limit: u64,
+    pub model: String,
+}
+
 /// Диалоги по сессиям OpenCode (ключ — session_id). Хранится в памяти.
 pub struct ConversationStore {
     pub conversations: Mutex<HashMap<String, Vec<ConversationMessage>>>,

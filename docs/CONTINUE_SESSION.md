@@ -50,6 +50,8 @@
   для портов/PID, `taskkill /PID <pid> /F` для остановки, `where opencode` для
   поиска бинаря, `cmd /C` для npm-шимов `.cmd`/`.bat`.
 - Подсветка синтаксиса в markdown (`rehype-highlight` + тёмная hljs-тема).
+- Строка состояния в чате: токены сессии, % использования контекста и стоимость
+  (команда `get_session_usage`, данные из `GET /session/{id}`).
 - Автообновления: подключён `tauri-plugin-updater` (базовый конфиг в
   `tauri.conf.json` — endpoint GitHub Releases `latest.json`, публичный ключ
   вшит), команда `check_update` + кнопка «Проверить обновления» в «О программе».

@@ -581,6 +581,77 @@ pub fn project_name(port: u16) -> String {
         .unwrap_or_default()
 }
 
+/// Приблизительный лимит контекста модели (в токенах). В API OpenCode точного
+/// значения нет, поэтому определяем по семейству модели.
+fn model_context_limit(model_id: &str) -> u64 {
+    let m = model_id.to_lowercase();
+    if m.contains("gemini") {
+        1_000_000
+    } else if m.contains("claude") || m.contains("sonnet") || m.contains("opus") || m.contains("haiku") {
+        200_000
+    } else {
+        128_000
+    }
+}
+
+#[derive(Deserialize)]
+struct UsageTokens {
+    #[serde(default)]
+    input: u64,
+    #[serde(default)]
+    output: u64,
+    #[serde(default)]
+    reasoning: u64,
+}
+
+#[derive(Deserialize)]
+struct UsageModel {
+    id: String,
+}
+
+#[derive(Deserialize)]
+struct UsageSessionDetail {
+    #[serde(default)]
+    cost: f64,
+    tokens: UsageTokens,
+    #[serde(default)]
+    model: Option<UsageModel>,
+}
+
+/// Читает использование токенов/средств сессии с сервера OpenCode.
+pub fn fetch_session_usage(app: &AppHandle, session_id: &str) -> Option<crate::state::SessionUsage> {
+    let port = app
+        .state::<ConversationStore>()
+        .ports
+        .lock()
+        .unwrap()
+        .get(session_id)
+        .copied()?;
+    let client = http_client(Duration::from_secs(5));
+    let resp = client
+        .get(format!("{}/session/{}", base_url(port), session_id))
+        .send()
+        .ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    let detail: UsageSessionDetail = resp.json().ok()?;
+    let model = detail.model.map(|m| m.id).unwrap_or_default();
+    let tokens_input = detail.tokens.input;
+    let tokens_output = detail.tokens.output;
+    let tokens_reasoning = detail.tokens.reasoning;
+    let tokens_total = tokens_input + tokens_output + tokens_reasoning;
+    Some(crate::state::SessionUsage {
+        tokens_input,
+        tokens_output,
+        tokens_reasoning,
+        tokens_total,
+        cost: detail.cost,
+        context_limit: model_context_limit(&model),
+        model,
+    })
+}
+
 #[derive(Deserialize)]
 struct HistoryMessage {
     info: HistoryInfo,

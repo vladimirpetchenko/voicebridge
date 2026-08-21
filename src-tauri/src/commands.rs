@@ -349,6 +349,21 @@ pub fn get_session_info(
 }
 
 #[tauri::command]
+pub fn get_session_usage(
+    window: tauri::WebviewWindow,
+    app: AppHandle,
+) -> Option<crate::state::SessionUsage> {
+    let session_id = window
+        .label()
+        .strip_prefix("response-")
+        .unwrap_or_default();
+    if session_id.is_empty() {
+        return None;
+    }
+    crate::modules::opencode::fetch_session_usage(&app, session_id)
+}
+
+#[tauri::command]
 pub fn get_opencode_binary() -> String {
     crate::modules::opencode::opencode_binary()
 }

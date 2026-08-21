@@ -81,6 +81,16 @@ export interface SessionInfo {
   project: string;
 }
 
+export interface SessionUsage {
+  tokensInput: number;
+  tokensOutput: number;
+  tokensReasoning: number;
+  tokensTotal: number;
+  cost: number;
+  contextLimit: number;
+  model: string;
+}
+
 export interface WindowInfo {
   id: string;
   title: string;

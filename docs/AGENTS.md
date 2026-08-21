@@ -50,7 +50,8 @@ npm run build            # tsc + vite build
   `select_opencode_session`, `select_opencode_instance`, `list_projects`,
   `start_project`, `stop_project`, `get_models`, `download_model`,
   `select_stt_model`, `set_language`, `open_response_window`,
-  `get_conversation`, `get_session_info`, `close_response_window`,
+  `get_conversation`, `get_session_info`, `get_session_usage`,
+  `close_response_window`,
   `list_open_session_ids`, `reply_permission`, `reply_question`,
   `reject_question`, `get_opencode_binary`, `check_update`, `quit_app`.
 - События (`listen`): `state-changed` (AppState), `audio-level` (number),
@@ -111,7 +112,9 @@ permission/question). Главное окно — лаунчер, окно ча�
 `taskkill` для остановки, `where` для поиска бинаря, `cmd /C` для npm-шимов
 `.cmd`/`.bat`), подсветка синтаксиса в markdown (`rehype-highlight` + тёмная
 тема hljs), иконки `lucide-react` вместо emoji, звуки записи/отправки/ответа и
-анимация «думает» в чате. Подключён `tauri-plugin-updater` (базовый конфиг в
+анимация «думает» в чате. Внизу окна чата — строка состояния (токены сессии,
+% использования контекста, стоимость) из `GET /session/{id}`. Подключён
+`tauri-plugin-updater` (базовый конфиг в
 `tauri.conf.json`: endpoint — GitHub Releases `latest.json`, публичный ключ
 вшит; команда `check_update` + кнопка в «О программе»). Ключ подписи лежит в
 `src-tauri/voicebridge-signing.key` (gitignored); в CI передаётся через

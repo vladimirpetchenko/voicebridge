@@ -40,6 +40,7 @@ import type {
   PermissionRequest,
   QuestionRequest,
   SessionInfo,
+  SessionUsage,
 } from "./types";
 
 const DEFAULT_STATE: AppState = {
@@ -80,6 +81,17 @@ const SETTINGS_TABS = [
 function formatMb(mb: number): string {
   if (mb >= 1000) return `${(mb / 1000).toFixed(1)} ГБ`;
   return `${mb} МБ`;
+}
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return `${n}`;
+}
+
+function formatCost(c: number): string {
+  if (!c || c <= 0) return "$0.00";
+  return `$${c.toFixed(c < 0.01 ? 4 : 2)}`;
 }
 
 function relTime(ms: number): string {
@@ -874,6 +886,7 @@ function ResponseView() {
   const [questions, setQuestions] = useState<QuestionRequest[]>([]);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [info, setInfo] = useState<SessionInfo>({ title: "", project: "" });
+  const [usage, setUsage] = useState<SessionUsage | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
 
   const sessionId = useMemo(() => {
@@ -884,6 +897,12 @@ function ResponseView() {
     }
   }, []);
 
+  const refreshUsage = useCallback(() => {
+    invoke<SessionUsage | null>("get_session_usage")
+      .then(setUsage)
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     invoke<ConversationMessage[]>("get_conversation")
       .then(setMessages)
@@ -892,6 +911,8 @@ function ResponseView() {
     invoke<SessionInfo>("get_session_info")
       .then(setInfo)
       .catch(() => {});
+
+    refreshUsage();
 
     const unlistenUser = listen<{ sessionId: string; text: string }>(
       "opencode-user",
@@ -925,6 +946,8 @@ function ResponseView() {
     const unlistenDone = listen<{ sessionId: string }>("opencode-done", (e) => {
       if (e.payload.sessionId !== sessionId) return;
       playReceive();
+      // Обновляем счётчики после завершения ответа (БД может чуть отставать).
+      setTimeout(refreshUsage, 500);
     });
     const unlistenTool = listen<{ sessionId: string } & ToolAction>(
       "opencode-tool",
@@ -969,7 +992,7 @@ function ResponseView() {
       unlistenPermission.then((f) => f());
       unlistenQuestion.then((f) => f());
     };
-  }, [sessionId]);
+  }, [sessionId, refreshUsage]);
 
   useEffect(() => {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight });
@@ -1124,6 +1147,32 @@ function ResponseView() {
         )}
       </div>
       <ChatInput sessionId={sessionId} />
+      <footer className="chat-status-bar">
+        {usage && (
+          <>
+            <span
+              className="status-metric"
+              title={`Ввод ${formatTokens(usage.tokensInput)} · вывод ${formatTokens(usage.tokensOutput)} · reasoning ${formatTokens(usage.tokensReasoning)}`}
+            >
+              {formatTokens(usage.tokensTotal)} токенов
+            </span>
+            <span className="status-sep">·</span>
+            <span
+              className="status-metric"
+              title="Процент использования контекстного окна модели"
+            >
+              {usage.contextLimit > 0
+                ? Math.round((usage.tokensTotal / usage.contextLimit) * 100)
+                : 0}
+              % контекста
+            </span>
+            <span className="status-sep">·</span>
+            <span className="status-metric" title={`Модель: ${usage.model}`}>
+              {formatCost(usage.cost)}
+            </span>
+          </>
+        )}
+      </footer>
     </main>
   );
 }
