@@ -66,9 +66,11 @@
   пустой список; нужны системные API: на macOS `CGWindowListCopyWindowInfo`
   для списка окон, на Windows `EnumWindows`; вставка текста (симуляция клавиш /
   буфер обмена + Ctrl+V). Команда `list_windows` и настройки вставки уже есть.
-- Завершение автообновлений: подпись/нотаризация `.app` под macOS, сборка
-  `.msi`/NSIS под Windows, публикация артефактов и манифеста `latest.json`
-  в GitHub Releases (CI).
+- Завершение автообновлений: `bundle.createUpdaterArtifacts` выключен (иначе
+  сборка требует ключ); нужно добавить секрет `TAURI_SIGNING_PRIVATE_KEY` в CI,
+  включить `createUpdaterArtifacts`, подписать/нотаризировать `.app` (macOS),
+  собрать `.msi`/NSIS (Windows) и публиковать артефакты + `latest.json` в
+  GitHub Releases.
 
 **Ключевые грабли (подробно в docs/AGENTS.md):**
 - `src-tauri/.cargo/config.toml` форсит `SDKROOT=""` и

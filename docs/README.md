@@ -133,19 +133,21 @@ npm run tauri build   # релиз (.dmg / .exe)
 
 Подключён `tauri-plugin-updater`. Конфиг в `src-tauri/tauri.conf.json`
 (`plugins.updater`): endpoint — `latest.json` из GitHub Releases, вшит
-публичный ключ подписи. Сборка с `bundle.createUpdaterArtifacts = true`
-генерирует артефакты обновления и манифест.
+публичный ключ подписи. Проверка обновлений — команда `check_update`
+(кнопка «Проверить обновления» в «Настройки → О программе»).
 
 Ключ подписи:
 
 - приватный — `src-tauri/voicebridge-signing.key` (в `.gitignore`, не коммитить);
-- в CI приватный ключ передаётся через env `TAURI_SIGNING_PRIVATE_KEY`.
+- в CI приватный ключ передаётся через env `TAURI_SIGNING_PRIVATE_KEY`
+  (секрет репозитория).
 
-Проверка обновлений — команда `check_update` (кнопка «Проверить обновления»
-в «Настройки → О программе»).
-
-Для работы обновлений в релизе ещё нужны: подпись/нотаризация `.app` (macOS),
-сборка `.msi`/NSIS (Windows) и публикация артефактов + `latest.json` в релиз.
+Генерация/подпись артефактов пока **выключена** (`bundle.createUpdaterArtifacts`
+не задан) — иначе сборка требует приватный ключ. Чтобы включить: добавить
+секрет `TAURI_SIGNING_PRIVATE_KEY` в репозиторий и задать
+`"createUpdaterArtifacts": true` в `bundle`, затем публиковать артефакты +
+`latest.json` в релиз. Также нужны подпись/нотаризация `.app` (macOS) и
+`.msi`/NSIS (Windows).
 
 ## Логи
 

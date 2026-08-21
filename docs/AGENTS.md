@@ -122,6 +122,7 @@ permission/question). Главное окно — лаунчер, окно ча�
 
 Не сделано: GUI-автоматизация (`modules/automation.rs` — заглушка, нужны
 системные API: macOS CGWindowList, Windows EnumWindows; настройки вставки в
-`AppState` уже есть). Автообновления подключены частично: не хватает подписи/
-нотаризации `.app` под macOS, сборки `.msi`/NSIS под Windows и публикации
-артефактов + манифеста `latest.json` в релиз (CI).
+`AppState` уже есть). Автообновления подключены частично: `createUpdaterArtifacts`
+выключен (иначе сборка требует ключ), не хватает секрета `TAURI_SIGNING_PRIVATE_KEY`
+в CI, подписи/нотаризации `.app` под macOS, сборки `.msi`/NSIS под Windows и
+публикации артефактов + манифеста `latest.json` в релиз.

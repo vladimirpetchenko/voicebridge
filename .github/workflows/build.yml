@@ -28,6 +28,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
+    env:
+      # Ключ подписи артефактов обновления. Нужен, когда в tauri.conf.json
+      # включён bundle.createUpdaterArtifacts. Секрет добавляется в
+      # Settings → Secrets and variables → Actions → TAURI_SIGNING_PRIVATE_KEY.
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
 
     steps:
       - name: Checkout
