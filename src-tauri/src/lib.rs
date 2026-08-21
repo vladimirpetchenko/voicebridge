@@ -19,6 +19,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let handle = app.handle().clone();
 
@@ -122,6 +123,7 @@ pub fn run() {
             commands::get_conversation,
             commands::close_response_window,
             commands::list_open_session_ids,
+            commands::check_update,
             commands::quit_app
         ])
         .run(tauri::generate_context!())

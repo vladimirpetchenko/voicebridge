@@ -117,6 +117,8 @@ function MainApp() {
   const [openSessionIds, setOpenSessionIds] = useState<string[]>([]);
   const [modelLoading, setModelLoading] = useState(false);
   const [opencodeBinary, setOpencodeBinary] = useState("");
+  const [updateStatus, setUpdateStatus] = useState<string | null>(null);
+  const [updateChecking, setUpdateChecking] = useState(false);
 
   useEffect(() => {
     invoke<AppState>("get_app_state")
@@ -356,6 +358,21 @@ function MainApp() {
     invoke<string>("get_opencode_binary")
       .then(setOpencodeBinary)
       .catch(() => {});
+  }, []);
+
+  const checkUpdate = useCallback(async () => {
+    setUpdateChecking(true);
+    setUpdateStatus("Проверяю обновления…");
+    try {
+      const version = await invoke<string | null>("check_update");
+      setUpdateStatus(
+        version ? `Доступна новая версия: ${version}` : "У вас последняя версия",
+      );
+    } catch (e) {
+      setUpdateStatus(`Не удалось проверить обновления: ${String(e)}`);
+    } finally {
+      setUpdateChecking(false);
+    }
   }, []);
 
   const refreshMicrophones = useCallback(() => {
@@ -821,6 +838,14 @@ function MainApp() {
                     github.com/vladimirpetchenko/voicebridge
                   </a>
                 </p>
+                <button
+                  className="btn"
+                  onClick={checkUpdate}
+                  disabled={updateChecking}
+                >
+                  <RefreshCw size={14} /> Проверить обновления
+                </button>
+                {updateStatus && <p className="about-version">{updateStatus}</p>}
               </div>
             )}
 

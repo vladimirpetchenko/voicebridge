@@ -52,7 +52,7 @@ npm run build            # tsc + vite build
   `select_stt_model`, `set_language`, `open_response_window`,
   `get_conversation`, `get_session_info`, `close_response_window`,
   `list_open_session_ids`, `reply_permission`, `reply_question`,
-  `reject_question`, `get_opencode_binary`, `quit_app`.
+  `reject_question`, `get_opencode_binary`, `check_update`, `quit_app`.
 - События (`listen`): `state-changed` (AppState), `audio-level` (number),
   `model-download-progress/-done/-error`, `model-loading/-loaded/-load-error`,
   `sessions-open-changed` (Vec<String> — id сессий с открытым окном чата),
@@ -111,8 +111,14 @@ permission/question). Главное окно — лаунчер, окно ча�
 `taskkill` для остановки, `where` для поиска бинаря, `cmd /C` для npm-шимов
 `.cmd`/`.bat`), подсветка синтаксиса в markdown (`rehype-highlight` + тёмная
 тема hljs), иконки `lucide-react` вместо emoji, звуки записи/отправки/ответа и
-анимация «думает» в чате.
+анимация «думает» в чате. Подключён `tauri-plugin-updater` (базовый конфиг в
+`tauri.conf.json`: endpoint — GitHub Releases `latest.json`, публичный ключ
+вшит; команда `check_update` + кнопка в «О программе»). Ключ подписи лежит в
+`src-tauri/voicebridge-signing.key` (gitignored); в CI передаётся через
+`TAURI_SIGNING_PRIVATE_KEY`.
 
 Не сделано: GUI-автоматизация (`modules/automation.rs` — заглушка, нужны
 системные API: macOS CGWindowList, Windows EnumWindows; настройки вставки в
-`AppState` уже есть), автообновления.
+`AppState` уже есть). Автообновления подключены частично: не хватает подписи/
+нотаризации `.app` под macOS, сборки `.msi`/NSIS под Windows и публикации
+артефактов + манифеста `latest.json` в релиз (CI).

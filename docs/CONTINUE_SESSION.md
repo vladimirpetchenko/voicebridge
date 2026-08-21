@@ -50,6 +50,11 @@
   для портов/PID, `taskkill /PID <pid> /F` для остановки, `where opencode` для
   поиска бинаря, `cmd /C` для npm-шимов `.cmd`/`.bat`.
 - Подсветка синтаксиса в markdown (`rehype-highlight` + тёмная hljs-тема).
+- Автообновления: подключён `tauri-plugin-updater` (базовый конфиг в
+  `tauri.conf.json` — endpoint GitHub Releases `latest.json`, публичный ключ
+  вшит), команда `check_update` + кнопка «Проверить обновления» в «О программе».
+  Ключ подписи: `src-tauri/voicebridge-signing.key` (gitignored), в CI —
+  `TAURI_SIGNING_PRIVATE_KEY`.
 - Настройки заполнены (Модели, Микрофон, OpenCode, Вставка, Горячие клавиши,
   О программе). Файловый логгер (`voicebridge.log`) + перехват паник.
 - CI: GitHub Actions собирает `.exe` (Windows) и `.dmg` (macOS) по тегу `v*`.
@@ -59,7 +64,9 @@
   пустой список; нужны системные API: на macOS `CGWindowListCopyWindowInfo`
   для списка окон, на Windows `EnumWindows`; вставка текста (симуляция клавиш /
   буфер обмена + Ctrl+V). Команда `list_windows` и настройки вставки уже есть.
-- Автообновления (Tauri updater).
+- Завершение автообновлений: подпись/нотаризация `.app` под macOS, сборка
+  `.msi`/NSIS под Windows, публикация артефактов и манифеста `latest.json`
+  в GitHub Releases (CI).
 
 **Ключевые грабли (подробно в docs/AGENTS.md):**
 - `src-tauri/.cargo/config.toml` форсит `SDKROOT=""` и
