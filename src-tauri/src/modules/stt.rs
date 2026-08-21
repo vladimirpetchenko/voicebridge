@@ -1,7 +1,7 @@
 //! Модуль распознавания речи (STT).
 //!
 //! Реализует локальное распознавание через `whisper.cpp` (обёртка `whisper-rs`):
-//! - реестр моделей (Tiny/Base/Small/Medium + Qwen3-ASR как «скоро»);
+//! - реестр моделей (Tiny/Base/Small/Medium/Large v3 Turbo/Large v3);
 //! - скачивание моделей с прогрессом (событие `model-download-progress`);
 //! - загрузка модели в фоновом потоке;
 //! - транскрипция аудио (16 кГц mono f32) в фоновом потоке.
@@ -85,24 +85,24 @@ const MODELS: &[SttModelDef] = &[
         description: "Высокая точность",
     },
     SttModelDef {
-        id: "qwen3-asr-fast",
-        name: "Qwen3-ASR Fast",
-        size_mb: 1000,
-        url: "",
-        file_name: "",
-        engine: "qwen3",
-        supported: false,
-        description: "Оптимизирован для Apple Silicon (скоро)",
+        id: "whisper-large-v3-turbo",
+        name: "Whisper Large v3 Turbo",
+        size_mb: 1600,
+        url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin",
+        file_name: "ggml-large-v3-turbo.bin",
+        engine: "whisper",
+        supported: true,
+        description: "Точность large-v3, быстрее",
     },
     SttModelDef {
-        id: "qwen3-asr-accurate",
-        name: "Qwen3-ASR Accurate",
-        size_mb: 2500,
-        url: "",
-        file_name: "",
-        engine: "qwen3",
-        supported: false,
-        description: "Максимальная точность (скоро)",
+        id: "whisper-large-v3",
+        name: "Whisper Large v3",
+        size_mb: 2900,
+        url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin",
+        file_name: "ggml-large-v3.bin",
+        engine: "whisper",
+        supported: true,
+        description: "Максимальная точность",
     },
 ];
 

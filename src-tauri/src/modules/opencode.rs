@@ -832,18 +832,38 @@ pub fn opencode_binary() -> String {
     }
     #[cfg(target_os = "windows")]
     {
-        // `where opencode` выводит пути (по одному на строку), берём первый.
+        // `where opencode` выводит пути (по одному на строку).
+        // Предпочитаем нативный .exe, иначе — npm-шим .cmd/.bat.
         if let Ok(out) = Command::new("where").arg("opencode").output() {
             let s = String::from_utf8_lossy(&out.stdout);
-            if let Some(first) = s.lines().next() {
-                let t = first.trim();
-                if !t.is_empty() {
-                    return t.to_string();
-                }
+            let candidates: Vec<&str> = s
+                .lines()
+                .map(|l| l.trim())
+                .filter(|l| !l.is_empty())
+                .collect();
+            if let Some(p) = candidates.iter().find(|p| p.ends_with(".exe")) {
+                return p.to_string();
+            }
+            if let Some(p) = candidates.first() {
+                return p.to_string();
             }
         }
     }
     "opencode".to_string()
+}
+
+/// Собирает команду запуска opencode. На Windows npm-шим (`.cmd`/`.bat`)
+/// нельзя запускать напрямую — оборачиваем в `cmd /C`.
+fn opencode_command(bin: &str) -> Command {
+    #[cfg(target_os = "windows")]
+    {
+        if bin.ends_with(".cmd") || bin.ends_with(".bat") {
+            let mut c = Command::new("cmd");
+            c.arg("/C").arg(bin);
+            return c;
+        }
+    }
+    Command::new(bin)
 }
 
 /// Стабильный порт для проекта (по хэшу пути, диапазон 4100–4199).
@@ -914,7 +934,7 @@ fn opencode_pid_on_port(port: u16) -> Option<u32> {
 pub fn list_projects() -> Vec<Project> {
     let bin = opencode_binary();
     const QUERY: &str = "SELECT directory AS worktree, MAX(time_updated) AS updated FROM session WHERE directory != '' GROUP BY directory ORDER BY updated DESC";
-    let out = match Command::new(&bin)
+    let out = match opencode_command(&bin)
         .args(["db", QUERY, "--format", "json"])
         .output()
     {
@@ -931,7 +951,7 @@ pub fn list_projects() -> Vec<Project> {
 
     let mut projects: Vec<Project> = rows
         .into_iter()
-        .filter(|r| !r.worktree.is_empty() && r.worktree != "/")
+        .filter(|r| !r.worktree.is_empty() && Path::new(&r.worktree).parent().is_some())
         .map(|r| {
             let name = Path::new(&r.worktree)
                 .file_name()
@@ -963,7 +983,7 @@ pub fn start_project(worktree: &str) -> Result<(), String> {
         return Err("папка проекта не существует".into());
     }
     let bin = opencode_binary();
-    Command::new(&bin)
+    opencode_command(&bin)
         .args(["serve", "--port", &port.to_string(), "--hostname", "127.0.0.1"])
         .current_dir(worktree)
         .stdout(std::process::Stdio::null())

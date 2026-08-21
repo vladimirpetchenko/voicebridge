@@ -8,7 +8,7 @@
 //!
 //! Планируется далее:
 //! - локальное распознавание через обёртку над `whisper.cpp`
-//!   (модели Tiny/Base/Small/Medium и Qwen3-ASR);
+//!   (модели Tiny/Base/Small/Medium/Large v3 Turbo/Large v3);
 //! - скачивание моделей с прогрессом.
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};

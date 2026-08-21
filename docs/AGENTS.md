@@ -108,12 +108,11 @@ permission/question). Главное окно — лаунчер, окно ча�
 (`ConversationStore.open_sessions`, команда `list_open_session_ids`, событие
 `sessions-open-changed`), при закрытии окна выбор сбрасывается. Обнаружение/
 остановка OpenCode работает и на Windows (`netstat`+`tasklist` для портов/PID,
-`taskkill` для остановки, `where` для поиска бинаря), подсветка синтаксиса в
-markdown (`rehype-highlight` + тёмная тема hljs), иконки `lucide-react` вместо
-emoji, звуки записи/отправки/ответа и анимация «думает» в чате.
+`taskkill` для остановки, `where` для поиска бинаря, `cmd /C` для npm-шимов
+`.cmd`/`.bat`), подсветка синтаксиса в markdown (`rehype-highlight` + тёмная
+тема hljs), иконки `lucide-react` вместо emoji, звуки записи/отправки/ответа и
+анимация «думает» в чате.
 
 Не сделано: GUI-автоматизация (`modules/automation.rs` — заглушка, нужны
 системные API: macOS CGWindowList, Windows EnumWindows; настройки вставки в
-`AppState` уже есть), Qwen3-ASR (whisper.cpp не поддерживает), автообновления,
-запуск opencode на Windows через `.cmd`-шим (`cmd /C`), если `where` вернул
-`.cmd`.
+`AppState` уже есть), автообновления.
