@@ -15,7 +15,8 @@
   лаунчер сессий, чат со стримом, инструменты, кнопка «Стоп».
 - ✅ **Этап 3 (действия, стоимость, reconnect) готов** — обработка
   разрешений/вопросов, строка токенов/стоимости, авто-переподключение при
-  обрыве.
+  обрыве, проекты (запуск/остановка) и полная история из OpenCode, markdown
+  в чате, брендинг (иконка/шрифт Fira Code/палитра десктопа).
 - ⏳ **Этап 4 (вне LAN) — текущая задача.** Доступ из любой сети (Tailscale/
   ZeroTier или облачный relay) и пуши. Всё на ветке `feature/mobile-app`.
 
@@ -77,14 +78,22 @@
 { "type": "command", "id": "12", "name": "reply_question", "port": 4149, "requestId": "…", "answers": [["вариант"]] }
 { "type": "command", "id": "13", "name": "reject_question", "port": 4149, "requestId": "…" }
 { "type": "command", "id": "14", "name": "register_device", "deviceId": "uuid", "deviceName": "iPhone" }
+{ "type": "command", "id": "15", "name": "list_projects" }
+{ "type": "command", "id": "16", "name": "start_project", "worktree": "/path/to/project" }
+{ "type": "command", "id": "17", "name": "stop_project", "worktree": "/path/to/project" }
 ```
 
 - `list_sessions` → массив `OpenCodeInstance` (инстансы с `port` и `sessions`,
   у сессии есть `id/title/model/updatedAt`).
+- `list_projects` → массив `Project` (`id/worktree/name/updated/running/port`).
+- `start_project` / `stop_project` — запуск/остановка headless-сервера OpenCode
+  для проекта (по `worktree`); возвращают обновлённый список проектов.
 - `select_session` — обязателен `sessionId`; `port`/`instanceId`/`title`/`model`
   берутся из данных `list_sessions`.
 - `send_prompt` — без `sessionId` шлёт в выбранную сессию; с `sessionId` — в неё.
 - `abort` — прерывает генерацию (без `sessionId` — выбранную сессию).
+- `get_conversation` — полная история сессии из OpenCode (если недоступна —
+  история из памяти десктопа); `port` необязателен.
 - `get_session_usage` — токены/стоимость сессии (объект `SessionUsage` или
   `null`, если данных нет).
 - `reply_permission` — ответ на запрос разрешения: `reply` ∈
@@ -168,19 +177,26 @@ curl -i -H "Connection: Upgrade" -H "Upgrade: websocket" \
 Проект в `mobile/` (пакет `voicebridge_mobile`).
 
 - Зависимости: `web_socket_channel`, `mobile_scanner` (QR), `flutter_secure_storage`
-  (токен), `provider` (состояние).
+  (токен), `provider` (состояние), `device_info_plus` (имя устройства),
+  `markdown_widget` (рендер markdown), `flutter_launcher_icons` (иконки).
 - Структура `mobile/lib/`:
-  - `models.dart` — Dart-модели (повторяют `src/types.ts`).
+  - `models.dart` — Dart-модели (повторяют `src/types.ts` + `Project`).
   - `ws_client.dart` — WS-клиент: команды с возрастающим `id`, ответы по `id`,
     события подписчикам, поток `onDisconnected` (неожиданный обрыв).
-  - `settings_store.dart` — адрес/токен пары в secure storage (Keychain /
-    EncryptedSharedPreferences).
-  - `app_state.dart` — `ChangeNotifier` (provider): статус соединения, сессии,
-    выбранная сессия, стрим чата, разрешения/вопросы, стоимость, авто-
-    переподключение (экспоненциальная задержка).
-  - `screens/` — `pairing_screen.dart` (QR-скан + ручной ввод), `sessions_screen.dart`
-    (лаунчер), `chat_screen.dart` (чат: сообщения, инструменты, карточки
-    разрешений/вопросов, строка токенов/стоимости, кнопка «Стоп»).
+  - `settings_store.dart` — адрес/токен/`deviceId` пары в secure storage
+    (Keychain / EncryptedSharedPreferences).
+  - `app_state.dart` — `ChangeNotifier` (provider): статус соединения, проекты,
+    сессии, выбранная сессия, стрим чата, разрешения/вопросы, стоимость,
+    авто-переподключение (экспоненциальная задержка).
+  - `theme.dart` — тёмная тема в стиле десктопа (палитра + шрифт Fira Code).
+  - `screens/` — `pairing_screen.dart` (QR-скан + ручной ввод),
+    `sessions_screen.dart` (лаунчер: проекты + сессии по проектам),
+    `chat_screen.dart` (чат: markdown, стрим, инструменты, разрешения/вопросы,
+    строка токенов/стоимости, кнопка «Стоп»).
+  - `widgets/` — `markdown_text.dart` (markdown с подсветкой кода),
+    `voicebridge_logo.dart` (лого-«волна», как на иконке).
+- Брендинг: иконка (та же «волна», что у десктопа), лого в шапке, шрифт Fira
+  Code (в `assets/fonts/`), палитра десктопа.
 - Платформенные права: камера + интернет + cleartext (Android), `NSCameraUsageDescription`
   + локальная сеть (iOS).
 

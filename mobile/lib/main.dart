@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'app_state.dart';
 import 'screens/home_screen.dart';
+import 'theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,15 +20,7 @@ class VoiceBridgeApp extends StatelessWidget {
       child: MaterialApp(
         title: 'VoiceBridge',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          brightness: Brightness.dark,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF5B8DEF),
-            brightness: Brightness.dark,
-          ),
-          scaffoldBackgroundColor: const Color(0xFF0F1218),
-          useMaterial3: true,
-        ),
+        theme: AppTheme.dark(),
         home: const HomeScreen(),
       ),
     );

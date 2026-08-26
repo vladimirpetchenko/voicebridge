@@ -39,6 +39,7 @@ dependencies:
   flutter_secure_storage: ^11.0.0
   provider: ^6.1.5+1
   device_info_plus: ^13.2.0
+  markdown_widget: ^2.3.2+8
 
 dev_dependencies:
   flutter_test:
@@ -50,9 +51,16 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/icon.png"
+  remove_alpha_ios: true
 
 # The following section is specific to Flutter packages.
 flutter:
@@ -61,6 +69,18 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  fonts:
+    - family: FiraCode
+      fonts:
+        - asset: assets/fonts/FiraCode-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/FiraCode-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/FiraCode-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/FiraCode-Bold.ttf
+          weight: 700
 
   # To add assets to your application, add an assets section, like this:
   # assets:

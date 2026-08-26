@@ -3,6 +3,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 
 import '../app_state.dart';
+import '../widgets/voicebridge_logo.dart';
 
 /// Экран пейринга: сканирование QR-кода с десктопа или ручной ввод адреса
 /// и токена.
@@ -57,12 +58,20 @@ class _PairingScreenState extends State<PairingScreen> {
     final connecting = controller.status == ConnStatus.connecting;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('VoiceBridge — подключение')),
+      appBar: AppBar(
+        title: const Row(
+          children: [
+            VoiceBridgeLogo(size: 24),
+            SizedBox(width: 10),
+            Text('VoiceBridge'),
+          ],
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
           const SizedBox(height: 8),
-          const Icon(Icons.link, size: 48),
+          const VoiceBridgeLogo(size: 64),
           const SizedBox(height: 16),
           const Text(
             'Подключите телефон к десктопу VoiceBridge.\n'

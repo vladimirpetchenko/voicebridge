@@ -55,6 +55,35 @@ class OpenCodeInstance {
   }
 }
 
+class Project {
+  final String id;
+  final String worktree;
+  final String name;
+  final int updated;
+  final bool running;
+  final int port;
+
+  const Project({
+    required this.id,
+    required this.worktree,
+    required this.name,
+    required this.updated,
+    required this.running,
+    required this.port,
+  });
+
+  factory Project.fromJson(Map<String, dynamic> json) {
+    return Project(
+      id: json['id'] as String? ?? '',
+      worktree: json['worktree'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      updated: (json['updated'] as num?)?.toInt() ?? 0,
+      running: json['running'] as bool? ?? false,
+      port: (json['port'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
 class OpenCodeTarget {
   final String instanceId;
   final int port;

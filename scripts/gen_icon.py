@@ -6,6 +6,7 @@ import zlib
 
 SIZE = 1024
 R = 184  # радиус скругления фона
+MARGIN = 24  # отступ фона от краёв (для скругления углов)
 
 # Цвета фона (вертикальный градиент)
 BG_TOP = (27, 38, 55)
@@ -46,7 +47,7 @@ def lerp3(a, b, t):
 
 def build_pixels():
     cx = cy = SIZE / 2
-    hw = hh = SIZE / 2 - 24
+    hw = hh = SIZE / 2 - MARGIN
 
     # Ширины и позиции столбцов
     total_gap = (len(BARS) - 1) * GAP
@@ -111,5 +112,14 @@ def write_png(path, size, raw_pixels):
 
 
 if __name__ == "__main__":
-    write_png("app-icon.png", SIZE, build_pixels())
-    print("app-icon.png written")
+    import sys
+
+    if "--fullbleed" in sys.argv:
+        # Без скругления, отступов и прозрачных углов (для мобильных иконок).
+        R = 0
+        MARGIN = 0
+        out = "app-icon-fullbleed.png"
+    else:
+        out = "app-icon.png"
+    write_png(out, SIZE, build_pixels())
+    print(f"{out} written")

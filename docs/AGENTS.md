@@ -134,12 +134,15 @@ OpenCode выбранной сессии (`opencode_model` из `/session`). Г�
 Мобильное приложение (Flutter, управление десктопом по LAN через WebSocket) —
 спроектировано и расписано в `docs/MOBILE.md` (ветка `feature/mobile-app`).
 Десктопная часть готова: встроенный WS-сервер в `modules/mobile.rs` (axum,
-порт 47800, токен/QR, команды `ping/list_sessions/select_session/send_prompt/
-abort/get_conversation/get_state/get_session_usage/reply_permission/reply_question/
-reject_question`, трансляция `state-changed` и `opencode-*`).
+порт 47800, токен/QR, команды `ping/list_sessions/list_projects/start_project/
+stop_project/select_session/send_prompt/abort/get_conversation/get_state/
+get_session_usage/reply_permission/reply_question/reject_question/register_device`,
+трансляция `state-changed`, `devices-changed` и `opencode-*`).
 Flutter-клиент в `mobile/` (этапы 2–3 готовы): пейринг по QR/ручному вводу,
-лаунчер сессий, чат со стримом/инструментами, карточки разрешений/вопросов,
-строка токенов/стоимости, авто-переподключение. Осталось — этап 4 (вне LAN:
+лаунчер проектов с сессиями, чат с markdown (подсветка кода), стримом и
+инструментами, карточки разрешений/вопросов, строка токенов/стоимости,
+полная история из OpenCode, авто-переподключение. Брендинг как у десктопа:
+иконка-«волна», шрифт Fira Code, циановая палитра. Осталось — этап 4 (вне LAN:
 Tailscale/ZeroTier или облачный relay, пуши).
 
 ## Планы (отложено на самый конец)

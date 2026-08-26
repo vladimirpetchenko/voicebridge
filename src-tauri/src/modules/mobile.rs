@@ -288,7 +288,49 @@ fn run_command(
         }
         "get_conversation" => {
             let session_id = get_str(args, "sessionId");
-            Ok(serde_json::to_value(crate::modules::opencode::conversation_for(app, &session_id))
+            if session_id.is_empty() {
+                return Err("sessionId обязателен".into());
+            }
+            let port = args
+                .get("port")
+                .and_then(|x| x.as_u64())
+                .map(|p| p as u16)
+                .or_else(|| {
+                    app.state::<ConversationStore>()
+                        .ports
+                        .lock()
+                        .unwrap()
+                        .get(&session_id)
+                        .copied()
+                });
+            // Полная история из OpenCode (как в десктопе), иначе — в памяти.
+            let msgs = match port {
+                Some(p) => match crate::modules::opencode::fetch_session_history(p, &session_id) {
+                    Ok(h) if !h.is_empty() => h,
+                    _ => crate::modules::opencode::conversation_for(app, &session_id),
+                },
+                None => crate::modules::opencode::conversation_for(app, &session_id),
+            };
+            Ok(serde_json::to_value(msgs).unwrap_or(serde_json::Value::Array(vec![])))
+        }
+        "list_projects" => Ok(serde_json::to_value(crate::modules::opencode::list_projects())
+            .unwrap_or(serde_json::Value::Array(vec![]))),
+        "start_project" => {
+            let worktree = get_str(args, "worktree");
+            if worktree.is_empty() {
+                return Err("worktree обязателен".into());
+            }
+            crate::modules::opencode::start_project(&worktree)?;
+            Ok(serde_json::to_value(crate::modules::opencode::list_projects())
+                .unwrap_or(serde_json::Value::Array(vec![])))
+        }
+        "stop_project" => {
+            let worktree = get_str(args, "worktree");
+            if worktree.is_empty() {
+                return Err("worktree обязателен".into());
+            }
+            crate::modules::opencode::stop_project(&worktree)?;
+            Ok(serde_json::to_value(crate::modules::opencode::list_projects())
                 .unwrap_or(serde_json::Value::Array(vec![])))
         }
         "get_session_usage" => {

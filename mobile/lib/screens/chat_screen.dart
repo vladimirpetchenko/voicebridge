@@ -3,8 +3,10 @@ import 'package:provider/provider.dart';
 
 import '../app_state.dart';
 import '../models.dart';
+import '../theme.dart';
+import '../widgets/markdown_text.dart';
 
-/// Экран чата с выбранной сессией: сообщения, стрим, инструменты, строка ввода.
+/// Экран чата с выбранной сессией: markdown, стрим, инструменты, действия.
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
 
@@ -14,12 +16,10 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final _inputController = TextEditingController();
-  final _scrollController = ScrollController();
 
   @override
   void dispose() {
     _inputController.dispose();
-    _scrollController.dispose();
     super.dispose();
   }
 
@@ -36,15 +36,27 @@ class _ChatScreenState extends State<ChatScreen> {
     final title = controller.selectedSession?.title ??
         controller.selectedSessionId ??
         'Чат';
+    final project = controller.selectedInstance?.name;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(title, overflow: TextOverflow.ellipsis),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, overflow: TextOverflow.ellipsis),
+            if (project != null && project.isNotEmpty)
+              Text(
+                project,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, color: AppTheme.textDim),
+              ),
+          ],
+        ),
         actions: [
           if (controller.busy)
             IconButton(
               tooltip: 'Остановить',
-              icon: const Icon(Icons.stop_circle_outlined),
+              icon: const Icon(Icons.stop_circle_outlined, color: Color(0xFFFF6B6B)),
               onPressed: () => context.read<AppController>().abort(),
             ),
         ],
@@ -53,60 +65,40 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           Expanded(
             child: ListView(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(12),
-              children: [
-                for (int i = 0; i < controller.messages.length; i++)
-                  _MessageBubble(message: controller.messages[i]),
-                for (final p in controller.pendingPermissions)
-                  _PermissionCard(request: p),
-                for (final q in controller.pendingQuestions)
-                  _QuestionCard(request: q),
-                if (controller.busy && controller.messages.isNotEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8),
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 12,
-                          height: 12,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                        SizedBox(width: 8),
-                        Text('думает…', style: TextStyle(color: Colors.grey)),
-                      ],
-                    ),
-                  ),
-                if (controller.tools.isNotEmpty) _ToolChips(tools: controller.tools),
-              ],
+              reverse: true,
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              children: _buildItems(controller).reversed.toList(),
             ),
           ),
-          if (controller.usage != null)
-            _UsageBar(usage: controller.usage!),
+          if (controller.usage != null) _UsageBar(usage: controller.usage!),
           SafeArea(
+            top: false,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Expanded(
                     child: TextField(
                       controller: _inputController,
                       minLines: 1,
-                      maxLines: 5,
-                      textInputAction: TextInputAction.send,
+                      maxLines: 6,
+                      textInputAction: TextInputAction.newline,
                       onSubmitted: (_) => _send(),
                       decoration: const InputDecoration(
                         hintText: 'Сообщение…',
-                        border: OutlineInputBorder(),
-                        isDense: true,
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   IconButton.filled(
                     tooltip: 'Отправить',
-                    icon: const Icon(Icons.send),
                     onPressed: _send,
+                    style: IconButton.styleFrom(
+                      backgroundColor: AppTheme.accent,
+                      foregroundColor: Colors.white,
+                    ),
+                    icon: const Icon(Icons.arrow_upward_rounded),
                   ),
                 ],
               ),
@@ -115,6 +107,28 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
     );
+  }
+
+  List<Widget> _buildItems(AppController controller) {
+    final items = <Widget>[];
+
+    for (final msg in controller.messages) {
+      if (msg.isAssistant && msg.text.isEmpty) continue;
+      items.add(_MessageBubble(message: msg));
+    }
+    for (final p in controller.pendingPermissions) {
+      items.add(_PermissionCard(request: p));
+    }
+    for (final q in controller.pendingQuestions) {
+      items.add(_QuestionCard(request: q));
+    }
+    if (controller.busy) {
+      items.add(const _ThinkingIndicator());
+    }
+    if (controller.tools.isNotEmpty) {
+      items.add(_ToolChips(tools: controller.tools));
+    }
+    return items;
   }
 }
 
@@ -126,58 +140,59 @@ class _MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isAssistant = message.isAssistant;
-    final scheme = Theme.of(context).colorScheme;
     return Align(
       alignment: isAssistant ? Alignment.centerLeft : Alignment.centerRight,
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        constraints: const BoxConstraints(maxWidth: 320),
-        decoration: BoxDecoration(
-          color: isAssistant ? scheme.surfaceContainerHighest : scheme.primary,
-          borderRadius: BorderRadius.circular(12),
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.82,
         ),
-        child: Text(
-          message.text.isEmpty ? ' ' : message.text,
-          style: TextStyle(
-            color: isAssistant ? scheme.onSurface : scheme.onPrimary,
+        decoration: BoxDecoration(
+          color: isAssistant ? AppTheme.surface2 : const Color(0xFF2A3A66),
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(16),
+            topRight: const Radius.circular(16),
+            bottomLeft: Radius.circular(isAssistant ? 4 : 16),
+            bottomRight: Radius.circular(isAssistant ? 16 : 4),
           ),
         ),
+        child: isAssistant
+            ? MarkdownText(data: message.text)
+            : SelectableText(
+                message.text,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  height: 1.4,
+                ),
+              ),
       ),
     );
   }
 }
 
-class _ToolChips extends StatelessWidget {
-  final List<ToolAction> tools;
-
-  const _ToolChips({required this.tools});
+class _ThinkingIndicator extends StatelessWidget {
+  const _ThinkingIndicator();
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      children: [
-        for (final tool in tools)
-          Chip(
-            visualDensity: VisualDensity.compact,
-            avatar: Icon(
-              switch (tool.state) {
-                'running' => Icons.autorenew,
-                'done' => Icons.check,
-                'failed' => Icons.close,
-                _ => Icons.build,
-              },
-              size: 16,
-            ),
-            label: Text(tool.name),
-            backgroundColor: tool.state == 'failed'
-                ? scheme.errorContainer
-                : scheme.surfaceContainerHighest,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2),
           ),
-      ],
+          const SizedBox(width: 10),
+          Text(
+            'OpenCode думает…',
+            style: TextStyle(color: AppTheme.textDim, fontSize: 13),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -189,42 +204,53 @@ class _PermissionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('OpenCode запрашивает разрешение',
-                style: Theme.of(context).textTheme.titleSmall),
+            const Text(
+              'OpenCode запрашивает разрешение',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 4),
-            Text('Инструмент: ${request.permission.isEmpty ? '?' : request.permission}'),
+            Text(
+              'Инструмент: ${request.permission.isEmpty ? '?' : request.permission}',
+              style: const TextStyle(color: AppTheme.textDim, fontSize: 13),
+            ),
             if (request.patterns.isNotEmpty)
-              Text(
-                request.patterns.join('\n'),
-                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  request.patterns.join('\n'),
+                  style: const TextStyle(color: AppTheme.textDim, fontSize: 12),
+                ),
               ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Wrap(
               spacing: 8,
+              runSpacing: 8,
               children: [
                 FilledButton(
-                  onPressed: () =>
-                      context.read<AppController>().replyPermission(request, 'once'),
+                  onPressed: () => context
+                      .read<AppController>()
+                      .replyPermission(request, 'once'),
                   child: const Text('Разрешить'),
                 ),
                 OutlinedButton(
-                  onPressed: () =>
-                      context.read<AppController>().replyPermission(request, 'always'),
+                  onPressed: () => context
+                      .read<AppController>()
+                      .replyPermission(request, 'always'),
                   child: const Text('Всегда'),
                 ),
                 OutlinedButton(
-                  onPressed: () =>
-                      context.read<AppController>().replyPermission(request, 'reject'),
+                  onPressed: () => context
+                      .read<AppController>()
+                      .replyPermission(request, 'reject'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: scheme.error,
+                    foregroundColor: const Color(0xFFFF6B6B),
                   ),
                   child: const Text('Запретить'),
                 ),
@@ -244,49 +270,89 @@ class _QuestionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final first = request.questions.isNotEmpty ? request.questions.first : null;
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(first?.header ?? 'Вопрос OpenCode',
-                style: Theme.of(context).textTheme.titleSmall),
+            Text(
+              first?.header ?? 'Вопрос OpenCode',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
             if (first != null && first.question.isNotEmpty) ...[
               const SizedBox(height: 4),
-              Text(first.question),
+              Text(
+                first.question,
+                style: const TextStyle(color: AppTheme.textDim, fontSize: 13),
+              ),
             ],
             if (first != null && first.options.isNotEmpty) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
                   for (final opt in first.options)
                     OutlinedButton(
-                      onPressed: () => context
-                          .read<AppController>()
-                          .answerQuestion(request, [
-                        [opt.label]
-                      ]),
+                      onPressed: () => context.read<AppController>().answerQuestion(
+                            request,
+                            [
+                              [opt.label]
+                            ],
+                          ),
                       child: Text(opt.label),
                     ),
                 ],
               ),
             ],
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             TextButton(
               onPressed: () =>
                   context.read<AppController>().rejectQuestion(request),
-              style: TextButton.styleFrom(foregroundColor: scheme.error),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFFFF6B6B),
+              ),
               child: const Text('Отклонить'),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ToolChips extends StatelessWidget {
+  final List<ToolAction> tools;
+
+  const _ToolChips({required this.tools});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (final tool in tools)
+          Chip(
+            visualDensity: VisualDensity.compact,
+            avatar: Icon(
+              switch (tool.state) {
+                'running' => Icons.autorenew,
+                'done' => Icons.check,
+                'failed' => Icons.close,
+                _ => Icons.build,
+              },
+              size: 16,
+              color: tool.state == 'failed'
+                  ? const Color(0xFFFF6B6B)
+                  : AppTheme.textDim,
+            ),
+            label: Text(tool.name),
+          ),
+      ],
     );
   }
 }
@@ -298,21 +364,21 @@ class _UsageBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    String cost() {
-      if (usage.cost == 0) return '';
-      return ' · \$${usage.cost.toStringAsFixed(4)}';
-    }
-
+    final parts = <String>[
+      '${usage.tokensTotal} токенов',
+      if (usage.model.isNotEmpty) usage.model,
+      if (usage.cost > 0) '\$${usage.cost.toStringAsFixed(4)}',
+    ];
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      color: scheme.surfaceContainerHighest,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: const BoxDecoration(
+        color: AppTheme.surface,
+        border: Border(top: BorderSide(color: Color(0x14FFFFFF))),
+      ),
       child: Text(
-        '${usage.tokensTotal} токенов'
-        '${usage.model.isNotEmpty ? ' · ${usage.model}' : ''}'
-        '${cost()}',
-        style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+        parts.join(' · '),
+        style: const TextStyle(color: AppTheme.textDim, fontSize: 12),
       ),
     );
   }

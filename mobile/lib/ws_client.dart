@@ -6,7 +6,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 /// Событие, пришедшее от десктопа (`type: "event"`).
 class WsEvent {
   final String name;
-  final Map<String, dynamic> data;
+  final dynamic data;
 
   const WsEvent(this.name, this.data);
 }
@@ -77,8 +77,7 @@ class WsClient {
       }
     } else if (type == 'event') {
       final name = msg['name'] as String? ?? '';
-      final data = (msg['data'] as Map<String, dynamic>?) ?? const {};
-      _events.add(WsEvent(name, data));
+      _events.add(WsEvent(name, msg['data']));
     }
   }
 

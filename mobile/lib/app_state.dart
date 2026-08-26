@@ -19,6 +19,7 @@ class AppController extends ChangeNotifier {
   String? errorMessage;
 
   List<OpenCodeInstance> instances = [];
+  List<Project> projects = [];
 
   OpenCodeInstance? selectedInstance;
   OpenCodeSession? selectedSession;
@@ -67,6 +68,7 @@ class AppController extends ChangeNotifier {
       status = ConnStatus.connected;
       notifyListeners();
       await refreshSessions();
+      await refreshProjects();
       await registerDevice();
     } catch (e) {
       status = ConnStatus.disconnected;
@@ -187,6 +189,38 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  Future<void> refreshProjects() async {
+    try {
+      final data = await ws.command('list_projects');
+      projects = (data as List<dynamic>? ?? [])
+          .map((e) => Project.fromJson(e as Map<String, dynamic>))
+          .toList();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> startProject(String worktree) async {
+    try {
+      final data = await ws.command('start_project', {'worktree': worktree});
+      projects = (data as List<dynamic>? ?? [])
+          .map((e) => Project.fromJson(e as Map<String, dynamic>))
+          .toList();
+      notifyListeners();
+      await refreshSessions();
+    } catch (_) {}
+  }
+
+  Future<void> stopProject(String worktree) async {
+    try {
+      final data = await ws.command('stop_project', {'worktree': worktree});
+      projects = (data as List<dynamic>? ?? [])
+          .map((e) => Project.fromJson(e as Map<String, dynamic>))
+          .toList();
+      notifyListeners();
+      await refreshSessions();
+    } catch (_) {}
+  }
+
   /// Сообщает десктопу, какое устройство подключилось (сохранение пары).
   Future<void> registerDevice() async {
     try {
@@ -241,7 +275,10 @@ class AppController extends ChangeNotifier {
     final id = selectedSessionId;
     if (id == null) return;
     try {
-      final data = await ws.command('get_conversation', {'sessionId': id});
+      final args = <String, dynamic>{'sessionId': id};
+      final port = selectedInstance?.port;
+      if (port != null && port > 0) args['port'] = port;
+      final data = await ws.command('get_conversation', args);
       messages
         ..clear()
         ..addAll((data as List<dynamic>? ?? [])

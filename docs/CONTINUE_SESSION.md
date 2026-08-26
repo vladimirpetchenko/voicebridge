@@ -76,16 +76,19 @@
   (симуляция клавиш / буфер обмена + Ctrl/Cmd+V). В текущей сборке не
   реализована.
 
-**Мобильное приложение (текущий фокус, ветка `feature/mobile-app`):**
+**Мобильное приложение (ветка `feature/mobile-app`):**
 - Идея: Flutter-приложение управляет десктопом по локальной сети (LAN), десктоп
   работает как мост к OpenCode. Без облака; Tailscale/ZeroTier — позже.
-- **Уже сделано (этапы 0–1, десктоп)**: встроенный WebSocket-сервер в
-  `src-tauri/src/modules/mobile.rs` (axum, порт 47800, авторизация по токену,
-  QR в настройках «Мобильный доступ»). Команды `ping/list_sessions/get_state/
-  select_session/send_prompt/abort/get_conversation`, трансляция событий
-  `state-changed` и `opencode-*`. Протестировано вручную.
-- **Следующий шаг (этап 2)**: Flutter-клиент в `mobile/` — пейринг по QR,
-  лаунчер сессий, чат со стримом. Подробный протокол и советы — в `docs/MOBILE.md`.
+- **Сделано (этапы 0–3)**: десктопный WS-сервер в `src-tauri/src/modules/mobile.rs`
+  (axum, порт 47800, токен/QR, команды `ping/list_sessions/list_projects/
+  start_project/stop_project/select_session/send_prompt/abort/get_conversation/
+  get_state/get_session_usage/reply_permission/reply_question/reject_question/
+  register_device`). Flutter-клиент в `mobile/`: пейринг по QR/ручному вводу,
+  лаунчер проектов с сессиями, чат с markdown (подсветка кода) и стримом,
+  разрешения/вопросы, стоимость, полная история, авто-переподключение,
+  брендинг (иконка/шрифт Fira Code/палитра десктопа).
+- **Следующий шаг (этап 4)**: доступ вне LAN — Tailscale/ZeroTier или облачный
+  relay, пуши. Подробный протокол — в `docs/MOBILE.md`.
 
 **Ключевые грабли (подробно в docs/AGENTS.md):**
 - `src-tauri/.cargo/config.toml` форсит `SDKROOT=""` и
@@ -98,6 +101,6 @@
 
 Начни с того, что подтверди понимание текущего состояния (прочитай docs/),
 проверь сборку, затем спроси/уточни, что именно делаем дальше (по умолчанию —
-Flutter-клиент мобильного приложения, этап 2 из `docs/MOBILE.md`).
+этап 4 мобильного приложения: доступ вне LAN, см. `docs/MOBILE.md`).
 
 ---
