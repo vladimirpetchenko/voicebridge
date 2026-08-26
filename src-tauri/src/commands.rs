@@ -474,20 +474,18 @@ pub async fn list_projects() -> Vec<crate::modules::opencode::Project> {
         .unwrap_or_default()
 }
 
-#[tauri::command]
-pub async fn create_session(
-    app: AppHandle,
+/// Создаёт сессию и делает её выбранной. Синхронная часть (HTTP-вызов) —
+/// вызывать из `spawn_blocking`. Общая для десктопа и мобильного моста.
+pub fn create_session_inner(
+    app: &AppHandle,
     port: u16,
-    worktree: String,
-    title: String,
+    worktree: &str,
+    title: &str,
 ) -> Result<AppState, String> {
-    let session =
-        tauri::async_runtime::spawn_blocking(move || crate::modules::opencode::create_session(port, &title))
-            .await
-            .map_err(|e| e.to_string())??;
+    let session = crate::modules::opencode::create_session(port, title)?;
 
-    let instance_id = worktree.clone();
-    let project = std::path::Path::new(&worktree)
+    let instance_id = worktree.to_string();
+    let project = std::path::Path::new(worktree)
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
@@ -509,17 +507,31 @@ pub async fn create_session(
         port,
         name: project.clone(),
     });
-    crate::modules::opencode::remember_session_port(&app, &session.id, port);
-    crate::modules::opencode::remember_session_title(&app, &session.id, &session.title);
-    crate::modules::opencode::remember_session_project(&app, &session.id, &project);
+    crate::modules::opencode::remember_session_port(app, &session.id, port);
+    crate::modules::opencode::remember_session_title(app, &session.id, &session.title);
+    crate::modules::opencode::remember_session_project(app, &session.id, &project);
     s.response.clear();
     s.status = AppStatus::Idle;
     s.status_message = "Готов к работе".into();
     let snapshot = s.clone();
     drop(s);
-    emit_state(&app, &snapshot);
-    save_state(&app, &snapshot);
+    emit_state(app, &snapshot);
+    save_state(app, &snapshot);
     Ok(snapshot)
+}
+
+#[tauri::command]
+pub async fn create_session(
+    app: AppHandle,
+    port: u16,
+    worktree: String,
+    title: String,
+) -> Result<AppState, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        create_session_inner(&app, port, &worktree, &title)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -678,6 +690,34 @@ pub fn forget_device(app: AppHandle, device_id: String) -> Vec<crate::state::Kno
     save_state(&app, &snapshot);
     broadcast_devices(&app, &snapshot.known_devices);
     snapshot.known_devices
+}
+
+/// Скрывает проект из лаунчера (не удаляя папку).
+#[tauri::command]
+pub fn hide_project(app: AppHandle, worktree: String) -> AppState {
+    let state = app.state::<SharedState>();
+    let mut s = state.0.lock().unwrap();
+    if !s.hidden_projects.contains(&worktree) {
+        s.hidden_projects.push(worktree);
+    }
+    let snapshot = s.clone();
+    drop(s);
+    emit_state(&app, &snapshot);
+    save_state(&app, &snapshot);
+    snapshot
+}
+
+/// Возвращает скрытый проект обратно в лаунчер.
+#[tauri::command]
+pub fn unhide_project(app: AppHandle, worktree: String) -> AppState {
+    let state = app.state::<SharedState>();
+    let mut s = state.0.lock().unwrap();
+    s.hidden_projects.retain(|w| w != &worktree);
+    let snapshot = s.clone();
+    drop(s);
+    emit_state(&app, &snapshot);
+    save_state(&app, &snapshot);
+    snapshot
 }
 
 /// Проверяет наличие обновления. Возвращает версию, если доступна новая.

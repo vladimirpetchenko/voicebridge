@@ -18,6 +18,7 @@ import {
   Play,
   Plus,
   RefreshCw,
+  RotateCcw,
   Search,
   Settings,
   Square,
@@ -66,6 +67,7 @@ const DEFAULT_STATE: AppState = {
   selectedSession: null,
   opencodeModel: null,
   activeInstance: null,
+  hiddenProjects: [],
 };
 
 const SETTINGS_TABS = [
@@ -343,6 +345,15 @@ function MainApp() {
     });
   }, []);
 
+  const hideProject = useCallback((worktree: string) => {
+    invoke("hide_project", { worktree }).catch((e) => setError(String(e)));
+    refreshInstances();
+  }, [refreshInstances]);
+
+  const unhideProject = useCallback((worktree: string) => {
+    invoke("unhide_project", { worktree }).catch((e) => setError(String(e)));
+  }, []);
+
   const startProject = useCallback((worktree: string) => {
     invoke<Project[]>("start_project", { worktree })
       .then((list) => {
@@ -490,7 +501,11 @@ function MainApp() {
 
   // Инстансы, не привязанные к проектам (ручной запуск сервера).
   const projectPorts = useMemo(() => new Set(projects.map((p) => p.port)), [projects]);
-  const orphanInstances = instances.filter((i) => !projectPorts.has(i.port));
+  const hiddenSet = useMemo(() => new Set(state.hiddenProjects ?? []), [state.hiddenProjects]);
+  const visibleProjects = projects.filter((p) => !hiddenSet.has(p.worktree));
+  const orphanInstances = instances.filter(
+    (i) => !projectPorts.has(i.port) && !hiddenSet.has(i.id),
+  );
 
   return (
     <main className="app">
@@ -542,12 +557,12 @@ function MainApp() {
             </div>
           </div>
           <div className="projects-list">
-            {projects.length === 0 && orphanInstances.length === 0 && (
+            {visibleProjects.length === 0 && orphanInstances.length === 0 && (
               <div className="sessions-empty">
                 Проекты не найдены. Откройте opencode в папке проекта.
               </div>
             )}
-            {projects.map((p) => {
+            {visibleProjects.map((p) => {
               const sessions = sessionsByPort.get(p.port) ?? [];
               const inst = instanceByPort.get(p.port);
               const expanded = expandedProjects.has(p.id);
@@ -575,6 +590,9 @@ function MainApp() {
                         <Play size={12} fill="currentColor" />
                       </button>
                     )}
+                    <button className="project-hide" onClick={() => hideProject(p.worktree)} title="Скрыть проект из списка">
+                      <X size={13} />
+                    </button>
                   </div>
                   {p.running && sessions.length === 0 && (
                     <div className="session-row empty">Нет сессий</div>
@@ -647,6 +665,22 @@ function MainApp() {
                 </div>
               );
             })}
+            {state.hiddenProjects.length > 0 && (
+              <div className="hidden-projects">
+                <div className="hidden-projects-header">Скрытые проекты</div>
+                {state.hiddenProjects.map((w) => {
+                  const p = projects.find((pr) => pr.worktree === w);
+                  return (
+                    <div key={w} className="hidden-project-row">
+                      <span className="project-name" title={w}>{p?.name ?? w}</span>
+                      <button className="btn small" onClick={() => unhideProject(w)} title="Вернуть проект в список">
+                        <RotateCcw size={13} /> Вернуть
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </section>
 

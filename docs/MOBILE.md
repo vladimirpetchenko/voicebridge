@@ -81,6 +81,9 @@
 { "type": "command", "id": "15", "name": "list_projects" }
 { "type": "command", "id": "16", "name": "start_project", "worktree": "/path/to/project" }
 { "type": "command", "id": "17", "name": "stop_project", "worktree": "/path/to/project" }
+{ "type": "command", "id": "18", "name": "create_session", "port": 4149, "worktree": "/path/to/project", "title": "…" }
+{ "type": "command", "id": "19", "name": "hide_project", "worktree": "/path/to/project" }
+{ "type": "command", "id": "20", "name": "unhide_project", "worktree": "/path/to/project" }
 ```
 
 - `list_sessions` → массив `OpenCodeInstance` (инстансы с `port` и `sessions`,
@@ -88,6 +91,10 @@
 - `list_projects` → массив `Project` (`id/worktree/name/updated/running/port`).
 - `start_project` / `stop_project` — запуск/остановка headless-сервера OpenCode
   для проекта (по `worktree`); возвращают обновлённый список проектов.
+- `create_session` — создаёт новую сессию в экземпляре (`port`), делает её
+  выбранной; возвращает цель `{instanceId, port, sessionId, title}`.
+- `hide_project` / `unhide_project` — скрыть/вернуть проект из лаунчера
+  (без удаления папки); возвращают обновлённый массив `hiddenProjects`.
 - `select_session` — обязателен `sessionId`; `port`/`instanceId`/`title`/`model`
   берутся из данных `list_sessions`.
 - `send_prompt` — без `sessionId` шлёт в выбранную сессию; с `sessionId` — в неё.
@@ -187,11 +194,12 @@ curl -i -H "Connection: Upgrade" -H "Upgrade: websocket" \
   - `settings_store.dart` — адрес/токен/`deviceId` пары в secure storage
     (Keychain / EncryptedSharedPreferences).
   - `app_state.dart` — `ChangeNotifier` (provider): статус соединения, проекты,
-    сессии, выбранная сессия, стрим чата, разрешения/вопросы, стоимость,
-    авто-переподключение (экспоненциальная задержка).
+    скрытые проекты, сессии, выбранная сессия, стрим чата, разрешения/вопросы,
+    стоимость, авто-переподключение (экспоненциальная задержка).
   - `theme.dart` — тёмная тема в стиле десктопа (палитра + шрифт Fira Code).
   - `screens/` — `pairing_screen.dart` (QR-скан + ручной ввод),
-    `sessions_screen.dart` (лаунчер: проекты + сессии по проектам),
+    `sessions_screen.dart` (лаунчер: проекты с сессиями, «Новая сессия»,
+    скрытие/возврат проектов, 3 последних сессии + раскрывашка),
     `chat_screen.dart` (чат: markdown, стрим, инструменты, разрешения/вопросы,
     строка токенов/стоимости, кнопка «Стоп»).
   - `widgets/` — `markdown_text.dart` (markdown с подсветкой кода),

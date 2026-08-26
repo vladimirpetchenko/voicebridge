@@ -90,6 +90,9 @@ pub struct AppState {
     /// Известные (сохранённые) мобильные устройства.
     #[serde(default)]
     pub known_devices: Vec<KnownDevice>,
+    /// Скрытые проекты (worktree-пути), не показываются в лаунчере.
+    #[serde(default)]
+    pub hidden_projects: Vec<String>,
 }
 
 impl Default for AppState {
@@ -119,6 +122,7 @@ impl Default for AppState {
             opencode_model: None,
             active_instance: None,
             known_devices: Vec::new(),
+            hidden_projects: Vec::new(),
         }
     }
 }

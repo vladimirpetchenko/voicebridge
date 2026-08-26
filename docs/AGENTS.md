@@ -50,6 +50,7 @@ npm run build            # tsc + vite build
   `set_sensitivity`, `set_silence_timeout`, `set_send_mode`, `set_hotkey`,
   `send_text`, `list_opencode_sessions`,
   `select_opencode_session`, `select_opencode_instance`, `list_projects`,
+  `create_session`, `hide_project`, `unhide_project`,
   `start_project`, `stop_project`, `get_models`, `download_model`,
   `select_stt_model`, `set_language`, `open_response_window`,
   `get_conversation`, `get_session_info`, `get_session_usage`,
@@ -136,11 +137,13 @@ OpenCode выбранной сессии (`opencode_model` из `/session`). Г�
 спроектировано и расписано в `docs/MOBILE.md` (ветка `feature/mobile-app`).
 Десктопная часть готова: встроенный WS-сервер в `modules/mobile.rs` (axum,
 порт 47800, токен/QR, команды `ping/list_sessions/list_projects/start_project/
-stop_project/select_session/send_prompt/abort/get_conversation/get_state/
-get_session_usage/reply_permission/reply_question/reject_question/register_device`,
-трансляция `state-changed`, `devices-changed` и `opencode-*`).
+stop_project/create_session/hide_project/unhide_project/select_session/
+send_prompt/abort/get_conversation/get_state/get_session_usage/reply_permission/
+reply_question/reject_question/register_device`, трансляция `state-changed`,
+`devices-changed` и `opencode-*`).
 Flutter-клиент в `mobile/` (этапы 2–3 готовы): пейринг по QR/ручному вводу,
-лаунчер проектов с сессиями, чат с markdown (подсветка кода), стримом и
+лаунчер проектов с сессиями («Новая сессия», скрытие/возврат проектов,
+3 последних сессии + раскрывашка), чат с markdown (подсветка кода), стримом и
 инструментами, карточки разрешений/вопросов, строка токенов/стоимости,
 полная история из OpenCode, авто-переподключение. Брендинг как у десктопа:
 иконка-«волна», шрифт Fira Code, циановая палитра. Осталось — этап 4 (вне LAN:

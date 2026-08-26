@@ -57,6 +57,7 @@ pub fn run() {
                 s.mobile_port = loaded.mobile_port;
                 s.mobile_token = loaded.mobile_token;
                 s.known_devices = loaded.known_devices;
+                s.hidden_projects = loaded.hidden_projects;
             }
 
             // Токен мобильного доступа генерируется один раз и сохраняется.
@@ -148,6 +149,8 @@ pub fn run() {
             commands::regenerate_mobile_token,
             commands::list_devices,
             commands::forget_device,
+            commands::hide_project,
+            commands::unhide_project,
             commands::quit_app
         ])
         .run(tauri::generate_context!())

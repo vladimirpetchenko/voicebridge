@@ -45,6 +45,19 @@ class SessionsScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _createAndOpen(BuildContext context, Project project) async {
+    final controller = context.read<AppController>();
+    await controller.createSession(project.port, project.worktree);
+    if (!context.mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ChatScreen()),
+    );
+    if (context.mounted) {
+      controller.refreshSessions();
+      controller.refreshProjects();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<AppController>();
@@ -53,10 +66,12 @@ class SessionsScreen extends StatelessWidget {
       for (final i in controller.instances) i.port: i,
     };
     final projectPorts = controller.projects.map((p) => p.port).toSet();
+    final hiddenSet = controller.hiddenProjects.toSet();
 
-    // Инстансы, не привязанные к проектам (ручной запуск сервера).
+    final visibleProjects =
+        controller.projects.where((p) => !hiddenSet.contains(p.worktree)).toList();
     final orphans = controller.instances
-        .where((i) => !projectPorts.contains(i.port))
+        .where((i) => !projectPorts.contains(i.port) && !hiddenSet.contains(i.id))
         .toList();
 
     return Scaffold(
@@ -75,6 +90,7 @@ class SessionsScreen extends StatelessWidget {
             onPressed: () {
               context.read<AppController>().refreshSessions();
               context.read<AppController>().refreshProjects();
+              context.read<AppController>().refreshHidden();
             },
           ),
           IconButton(
@@ -89,21 +105,19 @@ class SessionsScreen extends StatelessWidget {
           final c = context.read<AppController>();
           await c.refreshSessions();
           await c.refreshProjects();
+          await c.refreshHidden();
         },
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
-            _SectionHeader(
-              title: 'Проекты',
-              count: controller.projects.length,
-            ),
-            if (controller.projects.isEmpty)
+            _SectionHeader(title: 'Проекты', count: visibleProjects.length),
+            if (visibleProjects.isEmpty && orphans.isEmpty)
               const _EmptyCard(
                 icon: Icons.folder_open_rounded,
                 text: 'Проекты не найдены. Откройте opencode в папке проекта.',
               ),
-            for (final project in controller.projects)
+            for (final project in visibleProjects)
               _ProjectCard(
                 project: project,
                 sessions: byPort[project.port] ?? const [],
@@ -114,6 +128,10 @@ class SessionsScreen extends StatelessWidget {
                 onStop: () => context
                     .read<AppController>()
                     .stopProject(project.worktree),
+                onCreateSession: () => _createAndOpen(context, project),
+                onHide: () => context
+                    .read<AppController>()
+                    .hideProject(project.worktree),
                 onOpenSession: (session) {
                   final instance = instanceByPort[project.port];
                   if (instance != null) {
@@ -125,13 +143,47 @@ class SessionsScreen extends StatelessWidget {
               const SizedBox(height: 16),
               _SectionHeader(title: 'Другие серверы', count: orphans.length),
               for (final inst in orphans)
-                for (final session in inst.sessions)
-                  _SessionTile(
-                    title: session.title.isEmpty ? session.id : session.title,
-                    subtitle:
-                        '${inst.name.isEmpty ? 'сервер' : inst.name} · :${inst.port}',
-                    onTap: () => _open(context, inst, session),
+                _ProjectCard(
+                  project: Project(
+                    id: inst.id,
+                    worktree: inst.id,
+                    name: inst.name.isEmpty ? 'сервер' : inst.name,
+                    updated: 0,
+                    running: true,
+                    port: inst.port,
                   ),
+                  sessions: inst.sessions,
+                  relTime: _relTime,
+                  onStart: () {},
+                  onStop: () {},
+                  onCreateSession: () async {
+                    final c = context.read<AppController>();
+                    await c.createSession(inst.port, inst.id);
+                    if (!context.mounted) return;
+                    await Navigator.of(context)
+                        .push(MaterialPageRoute(builder: (_) => const ChatScreen()));
+                  },
+                  onHide: () => context.read<AppController>().hideProject(inst.id),
+                  onOpenSession: (session) => _open(context, inst, session),
+                ),
+            ],
+            if (controller.hiddenProjects.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _SectionHeader(
+                title: 'Скрытые проекты',
+                count: controller.hiddenProjects.length,
+              ),
+              for (final w in controller.hiddenProjects)
+                _HiddenProjectRow(
+                  name: () {
+                    final matches =
+                        controller.projects.where((p) => p.worktree == w);
+                    return matches.isEmpty ? w : matches.first.name;
+                  }(),
+                  onRestore: () => context
+                      .read<AppController>()
+                      .unhideProject(w),
+                ),
             ],
           ],
         ),
@@ -206,12 +258,50 @@ class _EmptyCard extends StatelessWidget {
   }
 }
 
-class _ProjectCard extends StatelessWidget {
+class _HiddenProjectRow extends StatelessWidget {
+  final String name;
+  final VoidCallback onRestore;
+
+  const _HiddenProjectRow({required this.name, required this.onRestore});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        child: Row(
+          children: [
+            const Icon(Icons.visibility_off_outlined,
+                size: 16, color: AppTheme.textDim),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                name,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
+            TextButton.icon(
+              onPressed: onRestore,
+              icon: const Icon(Icons.rotate_left_rounded, size: 16),
+              label: const Text('Вернуть'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProjectCard extends StatefulWidget {
   final Project project;
   final List<OpenCodeSession> sessions;
   final String Function(int) relTime;
   final VoidCallback onStart;
   final VoidCallback onStop;
+  final VoidCallback onCreateSession;
+  final VoidCallback onHide;
   final void Function(OpenCodeSession) onOpenSession;
 
   const _ProjectCard({
@@ -220,11 +310,25 @@ class _ProjectCard extends StatelessWidget {
     required this.relTime,
     required this.onStart,
     required this.onStop,
+    required this.onCreateSession,
+    required this.onHide,
     required this.onOpenSession,
   });
 
   @override
+  State<_ProjectCard> createState() => _ProjectCardState();
+}
+
+class _ProjectCardState extends State<_ProjectCard> {
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
+    final project = widget.project;
+    final sessions = widget.sessions;
+    final visible = _expanded ? sessions : sessions.take(3).toList();
+    final hidden = sessions.length - visible.length;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -289,39 +393,87 @@ class _ProjectCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                IconButton.filled(
-                  tooltip: project.running ? 'Остановить' : 'Запустить',
-                  onPressed: project.running ? onStop : onStart,
-                  style: IconButton.styleFrom(
-                    backgroundColor: project.running
-                        ? const Color(0x33FF6B6B)
-                        : AppTheme.surface2,
-                    foregroundColor: project.running
-                        ? const Color(0xFFFF6B6B)
-                        : AppTheme.accent2,
+                if (project.running)
+                  IconButton(
+                    tooltip: 'Остановить',
+                    onPressed: widget.onStop,
+                    icon: const Icon(Icons.stop_circle_outlined,
+                        color: Color(0xFFFF6B6B)),
+                  )
+                else
+                  IconButton(
+                    tooltip: 'Запустить',
+                    onPressed: widget.onStart,
+                    icon: const Icon(Icons.play_circle_outline_rounded,
+                        color: AppTheme.accent2),
                   ),
-                  icon: Icon(
-                    project.running
-                        ? Icons.stop_rounded
-                        : Icons.play_arrow_rounded,
-                  ),
+                IconButton(
+                  tooltip: 'Скрыть проект',
+                  onPressed: widget.onHide,
+                  icon: const Icon(Icons.close_rounded,
+                      size: 18, color: AppTheme.textDim),
                 ),
               ],
             ),
-            if (sessions.isNotEmpty) ...[
+            if (project.running) ...[
               const Divider(height: 20),
-              for (final session in sessions)
-                _SessionTile(
-                  title: session.title.isEmpty ? session.id : session.title,
-                  subtitle: relTime(session.updatedAt),
-                  onTap: () => onOpenSession(session),
+              if (sessions.isEmpty)
+                const Text(
+                  'Нет сессий',
+                  style: TextStyle(color: AppTheme.textDim, fontSize: 13),
+                )
+              else
+                for (final session in visible)
+                  _SessionTile(
+                    title: session.title.isEmpty ? session.id : session.title,
+                    subtitle: widget.relTime(session.updatedAt),
+                    onTap: () => widget.onOpenSession(session),
+                  ),
+              if (hidden > 0)
+                InkWell(
+                  onTap: () => setState(() => _expanded = !_expanded),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _expanded
+                              ? Icons.expand_less_rounded
+                              : Icons.expand_more_rounded,
+                          size: 16,
+                          color: AppTheme.textDim,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _expanded ? 'Свернуть' : 'Ещё $hidden',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textDim,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-            ] else if (project.running) ...[
-              const Divider(height: 20),
-              const Text(
-                'Нет сессий',
-                style: TextStyle(color: AppTheme.textDim, fontSize: 13),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: widget.onCreateSession,
+                  icon: const Icon(Icons.add_rounded, size: 16),
+                  label: const Text('Новая сессия'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.accent,
+                    side: BorderSide(
+                      color: AppTheme.accent.withValues(alpha: 0.4),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
               ),
             ],
           ],

@@ -20,6 +20,7 @@ class AppController extends ChangeNotifier {
 
   List<OpenCodeInstance> instances = [];
   List<Project> projects = [];
+  List<String> hiddenProjects = [];
 
   OpenCodeInstance? selectedInstance;
   OpenCodeSession? selectedSession;
@@ -69,6 +70,7 @@ class AppController extends ChangeNotifier {
       notifyListeners();
       await refreshSessions();
       await refreshProjects();
+      await refreshHidden();
       await registerDevice();
     } catch (e) {
       status = ConnStatus.disconnected;
@@ -238,6 +240,75 @@ class AppController extends ChangeNotifier {
           .toList();
       notifyListeners();
       await refreshSessions();
+    } catch (_) {}
+  }
+
+  Future<void> refreshHidden() async {
+    try {
+      final data = await ws.command('get_state');
+      if (data is Map<String, dynamic>) {
+        hiddenProjects = ((data['hiddenProjects'] as List<dynamic>?) ?? [])
+            .map((e) => e.toString())
+            .toList();
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> hideProject(String worktree) async {
+    try {
+      final data = await ws.command('hide_project', {'worktree': worktree});
+      hiddenProjects = (data as List<dynamic>? ?? []).map((e) => e.toString()).toList();
+      notifyListeners();
+      await refreshSessions();
+    } catch (_) {}
+  }
+
+  Future<void> unhideProject(String worktree) async {
+    try {
+      final data = await ws.command('unhide_project', {'worktree': worktree});
+      hiddenProjects = (data as List<dynamic>? ?? []).map((e) => e.toString()).toList();
+      notifyListeners();
+      await refreshProjects();
+      await refreshSessions();
+    } catch (_) {}
+  }
+
+  Future<void> createSession(int port, String worktree) async {
+    try {
+      final data = await ws.command('create_session', {
+        'port': port,
+        'worktree': worktree,
+        'title': '',
+      });
+      if (data is Map<String, dynamic>) {
+        final sessionId = data['sessionId'] as String? ?? '';
+        final title = data['title'] as String? ?? '';
+        selectedInstance = OpenCodeInstance(
+          id: worktree,
+          name: worktree.split('/').last,
+          port: port,
+          sessions: const [],
+        );
+        selectedSession = OpenCodeSession(
+          id: sessionId,
+          title: title,
+          directory: worktree,
+          updatedAt: 0,
+          model: '',
+        );
+        messages.clear();
+        tools.clear();
+        pendingPermissions.clear();
+        pendingQuestions.clear();
+        busy = false;
+        usage = null;
+        notifyListeners();
+        await loadConversation();
+        await refreshUsage();
+        await refreshSessions();
+        await refreshProjects();
+      }
     } catch (_) {}
   }
 

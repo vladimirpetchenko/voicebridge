@@ -333,6 +333,29 @@ fn run_command(
             Ok(serde_json::to_value(crate::modules::opencode::list_projects())
                 .unwrap_or(serde_json::Value::Array(vec![])))
         }
+        "create_session" => {
+            let port = args.get("port").and_then(|x| x.as_u64()).unwrap_or(0) as u16;
+            let worktree = get_str(args, "worktree");
+            let title = get_str(args, "title");
+            let state = crate::commands::create_session_inner(app, port, &worktree, &title)?;
+            Ok(serde_json::to_value(state.selected_session).unwrap_or(serde_json::Value::Null))
+        }
+        "hide_project" => {
+            let worktree = get_str(args, "worktree");
+            if worktree.is_empty() {
+                return Err("worktree обязателен".into());
+            }
+            let state = crate::commands::hide_project(app.clone(), worktree);
+            Ok(serde_json::to_value(state.hidden_projects).unwrap_or(serde_json::Value::Array(vec![])))
+        }
+        "unhide_project" => {
+            let worktree = get_str(args, "worktree");
+            if worktree.is_empty() {
+                return Err("worktree обязателен".into());
+            }
+            let state = crate::commands::unhide_project(app.clone(), worktree);
+            Ok(serde_json::to_value(state.hidden_projects).unwrap_or(serde_json::Value::Array(vec![])))
+        }
         "get_session_usage" => {
             let session_id = get_str(args, "sessionId");
             Ok(serde_json::to_value(

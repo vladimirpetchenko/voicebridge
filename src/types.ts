@@ -144,4 +144,5 @@ export interface AppState {
   selectedSession: OpenCodeTarget | null;
   opencodeModel: string | null;
   activeInstance: OpenCodeInstanceRef | null;
+  hiddenProjects: string[];
 }
