@@ -11,8 +11,8 @@
   --success: #34d399;
   --warning: #fbbf24;
 
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter",
-    sans-serif;
+  font-family: "Fira Code", ui-monospace, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
   color-scheme: dark;
 }
 
@@ -994,7 +994,6 @@ input[type="range"] {
 
 /* Markdown rendering */
 .markdown {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 13px;
   line-height: 1.55;
   color: var(--text);
@@ -1042,7 +1041,7 @@ input[type="range"] {
 }
 
 .markdown code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.9em;
   background: var(--bg-panel-2);
   padding: 0.15em 0.4em;
@@ -1254,7 +1253,7 @@ input[type="range"] {
 .response-view-body .markdown {
   max-width: 900px;
   margin: 0 auto;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 /* Conversation blocks in response window */
@@ -1323,6 +1322,7 @@ input[type="range"] {
   border: 1px solid rgba(34, 211, 238, 0.3);
   background: rgba(34, 211, 238, 0.08);
   color: var(--text);
+  font-size: 13px;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -1493,13 +1493,13 @@ input[type="range"] {
 }
 
 .voice-btn {
-  width: 52px;
-  height: 52px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   border: 2px solid var(--border);
   background: radial-gradient(circle at 50% 30%, #1e2632, #13171f);
   color: var(--accent);
-  font-size: 22px;
+  font-size: 16px;
   cursor: pointer;
   display: grid;
   place-items: center;
@@ -1557,7 +1557,7 @@ input[type="range"] {
 
 .chat-input-row {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 8px;
 }
 
@@ -1601,6 +1601,12 @@ input[type="range"] {
   background: var(--bg-panel-2);
   color: var(--text);
   font-size: 13px;
+  font-family: inherit;
+  line-height: 1.4;
+  resize: none;
+  min-height: 40px;
+  max-height: 160px;
+  overflow-y: auto;
 }
 
 .chat-text:focus {
@@ -1613,18 +1619,19 @@ input[type="range"] {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  border: none;
-  background: var(--accent);
-  color: #07131a;
+  border: 2px solid var(--border);
+  background: radial-gradient(circle at 50% 30%, #1e2632, #13171f);
+  color: var(--text-dim);
   font-size: 16px;
   cursor: pointer;
   display: grid;
   place-items: center;
-  transition: background 0.15s ease;
+  transition: color 0.15s ease, border-color 0.15s ease;
 }
 
 .send-btn:hover {
-  background: var(--accent-2);
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 /* Chat window header: title + project */

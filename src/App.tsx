@@ -1157,16 +1157,6 @@ function ResponseView() {
               {formatTokens(usage.tokensTotal)} токенов
             </span>
             <span className="status-sep">·</span>
-            <span
-              className="status-metric"
-              title="Процент использования контекстного окна модели"
-            >
-              {usage.contextLimit > 0
-                ? Math.round((usage.tokensTotal / usage.contextLimit) * 100)
-                : 0}
-              % контекста
-            </span>
-            <span className="status-sep">·</span>
             <span className="status-metric" title={`Модель: ${usage.model}`}>
               {formatCost(usage.cost)}
             </span>

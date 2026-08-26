@@ -6,6 +6,20 @@ import type { AppState } from "./types";
 import { playRecordingStart, playRecordingStop } from "./sounds";
 
 const WAVE_BARS = 24;
+/// Порог, после которого вставленный текст сворачивается в «вставлено ~N строк».
+const PASTE_LINES_THRESHOLD = 3;
+const PASTE_LEN_THRESHOLD = 300;
+/// Маркер свёрнутой вставки в поле ввода.
+const PASTE_MARKER_RE = /\[вставлено ~\d+[^\]]*\]/g;
+
+/// Русская форма слова «строка» по числу.
+function pluralLines(n: number): string {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return "строка";
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return "строки";
+  return "строк";
+}
 
 /// Принадлежит ли текущая запись этому окну (по целевой сессии).
 function ownsRecording(state: AppState, sessionId: string): boolean {
@@ -17,6 +31,7 @@ function ownsRecording(state: AppState, sessionId: string): boolean {
 /// (тап — запись, удержание — говорить, авто-остановка по тишине).
 export default function ChatInput({ sessionId }: { sessionId: string }) {
   const [text, setText] = useState("");
+  const [pastes, setPastes] = useState<{ lines: number; text: string }[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [level, setLevel] = useState<number | null>(null);
   const [sendMode, setSendMode] = useState("direct");
@@ -28,6 +43,7 @@ export default function ChatInput({ sessionId }: { sessionId: string }) {
   const holdRef = useRef(false);
   const holdTimerRef = useRef<number | null>(null);
   const lastTranscriptRef = useRef("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     invoke<AppState>("get_app_state")
@@ -47,10 +63,16 @@ export default function ChatInput({ sessionId }: { sessionId: string }) {
       setIsRecording((e.payload.recording || e.payload.status === "recording") && mine);
       // В режиме предпроверки распознанный текст попадает в поле ввода —
       // но только в окно той сессии, которой адресована запись.
+      // Существующий текст не затирается: новый дописывается в конец.
       if (e.payload.transcript && e.payload.sendMode === "confirm" && mine) {
         if (e.payload.transcript !== lastTranscriptRef.current) {
           lastTranscriptRef.current = e.payload.transcript;
-          setText(e.payload.transcript);
+          const t = e.payload.transcript;
+          setText((prev) => {
+            if (!prev) return t;
+            const sep = prev.endsWith(" ") || prev.endsWith("\n") ? "" : " ";
+            return prev + sep + t;
+          });
         }
       }
     });
@@ -92,12 +114,55 @@ export default function ChatInput({ sessionId }: { sessionId: string }) {
     prevRecordingRef.current = isRecording;
   }, [isRecording]);
 
-  const send = useCallback(() => {
-    const t = text.trim();
-    if (!t) return;
-    invoke("send_text", { text: t }).catch(() => {});
-    setText("");
+  // Авто-рост textarea по содержимому (до максимума).
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, [text]);
+
+  const send = useCallback(() => {
+    // Разворачиваем маркеры вставок в порядке их появления в тексте.
+    let full = text;
+    if (pastes.length > 0) {
+      let i = 0;
+      full = text.replace(PASTE_MARKER_RE, () => pastes[i++]?.text ?? "");
+    }
+    const final = full.trim();
+    if (!final) return;
+    invoke("send_text", { text: final }).catch(() => {});
+    setText("");
+    setPastes([]);
+  }, [text, pastes]);
+
+  const onPaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      const pasted = e.clipboardData.getData("text");
+      if (!pasted) return;
+      const lines = pasted.split("\n").length;
+      if (lines <= PASTE_LINES_THRESHOLD && pasted.length <= PASTE_LEN_THRESHOLD) return;
+      // Большая вставка: ставим маркер в месте курсора.
+      e.preventDefault();
+      const el = textareaRef.current;
+      const value = el ? el.value : text;
+      const start = el?.selectionStart ?? value.length;
+      const end = el?.selectionEnd ?? value.length;
+      const marker = `[вставлено ~${lines} ${pluralLines(lines)}]`;
+      const next = value.slice(0, start) + marker + value.slice(end);
+      setText(next);
+      setPastes((p) => [...p, { lines, text: pasted }]);
+      const pos = start + marker.length;
+      requestAnimationFrame(() => {
+        const ta = textareaRef.current;
+        if (ta) {
+          ta.focus();
+          ta.setSelectionRange(pos, pos);
+        }
+      });
+    },
+    [text],
+  );
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     try {
@@ -156,10 +221,13 @@ export default function ChatInput({ sessionId }: { sessionId: string }) {
       )}
       <div className={`chat-input-row ${isDirect ? "direct" : ""}`}>
         {!isDirect && (
-          <input
+          <textarea
+            ref={textareaRef}
             className="chat-text"
+            rows={1}
             value={text}
             onChange={(e) => setText(e.target.value)}
+            onPaste={onPaste}
             placeholder={isRecording ? "Говорите…" : "Сообщение…"}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
@@ -169,7 +237,7 @@ export default function ChatInput({ sessionId }: { sessionId: string }) {
             }}
           />
         )}
-        {!isDirect && text.trim() && (
+        {!isDirect && (
           <button className="send-btn" onClick={send} title="Отправить">
             <Send size={16} />
           </button>
@@ -182,7 +250,7 @@ export default function ChatInput({ sessionId }: { sessionId: string }) {
           title={sendMode === "confirm" ? "Запись → в поле ввода" : "Тап — запись · удержание — говорить"}
           aria-label={isRecording ? "Остановить запись" : "Записать голосовое"}
         >
-          {isRecording ? <Square size={20} fill="currentColor" /> : <Mic size={20} />}
+          {isRecording ? <Square size={16} fill="currentColor" /> : <Mic size={16} />}
         </button>
       </div>
       <div className="chat-input-footer">

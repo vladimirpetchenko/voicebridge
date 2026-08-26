@@ -113,7 +113,7 @@ permission/question). Главное окно — лаунчер, окно ча�
 `.cmd`/`.bat`), подсветка синтаксиса в markdown (`rehype-highlight` + тёмная
 тема hljs), иконки `lucide-react` вместо emoji, звуки записи/отправки/ответа и
 анимация «думает» в чате. Внизу окна чата — строка состояния (токены сессии,
-% использования контекста, стоимость) из `GET /session/{id}`. Подключён
+стоимость) из `GET /session/{id}`. Подключён
 `tauri-plugin-updater` (базовый конфиг в
 `tauri.conf.json`: endpoint — GitHub Releases `latest.json`, публичный ключ
 вшит; команда `check_update` + кнопка в «О программе»). Ключ подписи лежит в
