@@ -6,6 +6,8 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   Check,
+  ChevronDown,
+  ChevronRight,
   Copy,
   FileText,
   Globe,
@@ -945,6 +947,33 @@ function MainApp() {
   );
 }
 
+function ReasoningBlock({ text, streaming }: { text: string; streaming: boolean }) {
+  const [open, setOpen] = useState(streaming);
+  const prevStreaming = useRef(streaming);
+  useEffect(() => {
+    if (prevStreaming.current && !streaming) setOpen(false);
+    prevStreaming.current = streaming;
+  }, [streaming]);
+
+  return (
+    <div className="reasoning-block">
+      <button
+        type="button"
+        className="reasoning-toggle"
+        onClick={() => setOpen((o) => !o)}
+      >
+        {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        <span>{streaming ? "Размышляет…" : "Размышление"}</span>
+      </button>
+      {open && (
+        <div className="reasoning-text">
+          <Markdown>{text}</Markdown>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ResponseView() {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [tools, setTools] = useState<ToolAction[]>([]);
@@ -991,7 +1020,7 @@ function ResponseView() {
         setMessages((m) => [
           ...m,
           { role: "user", text: e.payload.text },
-          { role: "assistant", text: "" },
+          { role: "assistant", text: "", reasoning: "" },
         ]);
       },
     );
@@ -1006,6 +1035,25 @@ function ResponseView() {
             next.push({ role: "assistant", text: e.payload.text });
           } else {
             next[next.length - 1] = { ...last, text: last.text + e.payload.text };
+          }
+          return next;
+        });
+      },
+    );
+    const unlistenReasoning = listen<{ sessionId: string; text: string }>(
+      "opencode-reasoning-delta",
+      (e) => {
+        if (e.payload.sessionId !== sessionId) return;
+        setMessages((m) => {
+          const next = [...m];
+          const last = next[next.length - 1];
+          if (!last || last.role !== "assistant") {
+            next.push({ role: "assistant", text: "", reasoning: e.payload.text });
+          } else {
+            next[next.length - 1] = {
+              ...last,
+              reasoning: (last.reasoning ?? "") + e.payload.text,
+            };
           }
           return next;
         });
@@ -1063,6 +1111,7 @@ function ResponseView() {
     return () => {
       unlistenUser.then((f) => f());
       unlistenDelta.then((f) => f());
+      unlistenReasoning.then((f) => f());
       unlistenDone.then((f) => f());
       unlistenOcError.then((f) => f());
       unlistenTool.then((f) => f());
@@ -1218,15 +1267,21 @@ function ResponseView() {
                     </button>
                   )}
                 </div>
+                {m.reasoning ? (
+                  <ReasoningBlock
+                    text={m.reasoning}
+                    streaming={busy && !m.text}
+                  />
+                ) : null}
                 {m.text ? (
                   <Markdown>{m.text}</Markdown>
-                ) : (
+                ) : !m.reasoning ? (
                   <span className="thinking-dots" aria-label="OpenCode думает">
                     <span />
                     <span />
                     <span />
                   </span>
-                )}
+                ) : null}
               </div>
             ),
           )

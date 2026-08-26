@@ -62,6 +62,7 @@ npm run build            # tsc + vite build
   `model-download-progress/-done/-error`, `model-loading/-loaded/-load-error`,
   `sessions-open-changed` (Vec<String> — id сессий с открытым окном чата),
   `opencode-user {sessionId,text}`, `opencode-delta {sessionId,text}`,
+  `opencode-reasoning-delta {sessionId,text}`,
   `opencode-tool {sessionId,callId,name,state}`, `opencode-error {sessionId,error}`,
   `opencode-done {sessionId}`, `opencode-permission {sessionId,requestId,port,permission,patterns}`,
   `opencode-question {sessionId,requestId,port,questions}`.

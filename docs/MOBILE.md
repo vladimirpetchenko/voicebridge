@@ -119,6 +119,7 @@
 { "type": "event", "name": "sessions-open-changed", "data": ["ses_…"] }
 { "type": "event", "name": "opencode-user",     "data": { "sessionId": "…", "text": "…" } }
 { "type": "event", "name": "opencode-delta",    "data": { "sessionId": "…", "text": "…" } }
+{ "type": "event", "name": "opencode-reasoning-delta", "data": { "sessionId": "…", "text": "…" } }
 { "type": "event", "name": "opencode-tool",     "data": { "sessionId": "…", "callId": "…", "name": "…", "state": "…" } }
 { "type": "event", "name": "opencode-done",     "data": { "sessionId": "…" } }
 { "type": "event", "name": "opencode-error",    "data": { "sessionId": "…", "error": "…" } }
@@ -207,9 +208,10 @@ curl -i -H "Connection: Upgrade" -H "Upgrade: websocket" \
 - `web_socket_channel` подключается к `Uri` напрямую (`WebSocketChannel.connect(uri)`).
 - Один WS-канал на приложение; команды шлются с возрастающим `id`, ответы
   сопоставляются по `id`. Входящие `type: "event"` раздаются подписчикам по `name`.
-- Поток чата: `send_prompt` → события `opencode-user`, `opencode-delta` (доклеивать
-  в последний ответ), `opencode-tool`, `opencode-done`. Стоимость/токены — команда
-  `get_session_usage`.
+- Поток чата: `send_prompt` → события `opencode-user`, `opencode-reasoning-delta`
+  (размышления, доклеивать в блок reasoning), `opencode-delta` (итоговый ответ,
+  доклеивать в последний ответ), `opencode-tool`, `opencode-done`.
+  Стоимость/токены — команда `get_session_usage`.
 
 ## Безопасность
 

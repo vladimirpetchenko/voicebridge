@@ -136,6 +136,9 @@ impl Default for SharedState {
 pub struct ConversationMessage {
     pub role: String,
     pub text: String,
+    /// Размышления модели (reasoning), если есть.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub reasoning: String,
 }
 
 /// Информация о сессии для шапки окна чата.

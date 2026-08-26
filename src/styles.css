@@ -1393,6 +1393,44 @@ input[type="range"] {
   }
 }
 
+/* Блок размышлений (reasoning) — свёрнут по умолчанию */
+.reasoning-block {
+  margin: 2px 0 8px;
+}
+
+.reasoning-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel-2);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.reasoning-toggle:hover {
+  color: var(--text);
+}
+
+.reasoning-text .markdown {
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.reasoning-text .markdown p {
+  color: var(--text-dim);
+}
+
 /* Action prompt (permission/question) */
 .action-panel {
   max-width: 480px;

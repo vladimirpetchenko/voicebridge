@@ -113,8 +113,11 @@ class _ChatScreenState extends State<ChatScreen> {
     final items = <Widget>[];
 
     for (final msg in controller.messages) {
-      if (msg.isAssistant && msg.text.isEmpty) continue;
-      items.add(_MessageBubble(message: msg));
+      if (msg.isAssistant && msg.text.isEmpty && msg.reasoning.isEmpty) continue;
+      items.add(_MessageBubble(
+        message: msg,
+        streaming: controller.busy && msg.text.isEmpty,
+      ));
     }
     for (final p in controller.pendingPermissions) {
       items.add(_PermissionCard(request: p));
@@ -134,8 +137,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
 class _MessageBubble extends StatelessWidget {
   final ConversationMessage message;
+  final bool streaming;
 
-  const _MessageBubble({required this.message});
+  const _MessageBubble({required this.message, this.streaming = false});
 
   @override
   Widget build(BuildContext context) {
@@ -158,7 +162,18 @@ class _MessageBubble extends StatelessWidget {
           ),
         ),
         child: isAssistant
-            ? MarkdownText(data: message.text)
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (message.reasoning.isNotEmpty)
+                    _ReasoningBlock(
+                      text: message.reasoning,
+                      streaming: streaming,
+                    ),
+                  if (message.text.isNotEmpty) MarkdownText(data: message.text),
+                ],
+              )
             : SelectableText(
                 message.text,
                 style: const TextStyle(
@@ -168,6 +183,81 @@ class _MessageBubble extends StatelessWidget {
                 ),
               ),
       ),
+    );
+  }
+}
+
+class _ReasoningBlock extends StatefulWidget {
+  final String text;
+  final bool streaming;
+
+  const _ReasoningBlock({required this.text, required this.streaming});
+
+  @override
+  State<_ReasoningBlock> createState() => _ReasoningBlockState();
+}
+
+class _ReasoningBlockState extends State<_ReasoningBlock> {
+  bool _open = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _open = widget.streaming;
+  }
+
+  @override
+  void didUpdateWidget(covariant _ReasoningBlock old) {
+    super.didUpdateWidget(old);
+    if (old.streaming && !widget.streaming) {
+      _open = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        InkWell(
+          onTap: () => setState(() => _open = !_open),
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _open ? Icons.expand_more_rounded : Icons.chevron_right_rounded,
+                  size: 16,
+                  color: AppTheme.textDim,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  widget.streaming ? 'Размышляет…' : 'Размышление',
+                  style: const TextStyle(
+                    color: AppTheme.textDim,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_open)
+          Container(
+            margin: const EdgeInsets.only(top: 2, bottom: 8),
+            padding: const EdgeInsets.only(left: 12),
+            decoration: const BoxDecoration(
+              border: Border(
+                left: BorderSide(color: AppTheme.accent, width: 2),
+              ),
+            ),
+            child: MarkdownText(data: widget.text),
+          ),
+      ],
     );
   }
 }

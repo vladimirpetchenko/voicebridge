@@ -9,6 +9,7 @@ use crate::state::{
     OpenCodeTarget, SharedState,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
@@ -298,6 +299,10 @@ fn read_sse(
     use std::io::{BufRead, BufReader};
     let reader = BufReader::new(resp);
     let mut text = String::new();
+    // PartID → признак «это размышления (reasoning)». Заполняется из
+    // `message.part.updated`, используется в `message.part.delta` для
+    // разделения потока на размышления и итоговый ответ.
+    let mut reasoning_parts: HashSet<String> = HashSet::new();
 
     for line in reader.lines().map_while(Result::ok) {
         let line = line.trim();
@@ -323,18 +328,43 @@ fn read_sse(
             "message.part.delta" => {
                 if prop_str(&ev.properties, "field").as_deref() == Some("text") {
                     if let Some(delta) = prop_str(&ev.properties, "delta") {
-                        text.push_str(&delta);
-                        append_assistant_delta(app, session_id, &delta);
-                        crate::modules::mobile::emit_and_broadcast(
-                            app,
-                            "opencode-delta",
-                            serde_json::json!({ "sessionId": session_id, "text": delta }),
-                        );
+                        let part_id = prop_str(&ev.properties, "partID");
+                        let is_reasoning = part_id
+                            .as_ref()
+                            .map(|id| reasoning_parts.contains(id))
+                            .unwrap_or(false);
+                        if is_reasoning {
+                            append_assistant_reasoning_delta(app, session_id, &delta);
+                            crate::modules::mobile::emit_and_broadcast(
+                                app,
+                                "opencode-reasoning-delta",
+                                serde_json::json!({ "sessionId": session_id, "text": delta }),
+                            );
+                        } else {
+                            text.push_str(&delta);
+                            append_assistant_delta(app, session_id, &delta);
+                            crate::modules::mobile::emit_and_broadcast(
+                                app,
+                                "opencode-delta",
+                                serde_json::json!({ "sessionId": session_id, "text": delta }),
+                            );
+                        }
                     }
                 }
             }
             "message.part.updated" => {
                 if let Some(part) = ev.properties.get("part") {
+                    // Запоминаем тип парта, чтобы отличать размышления от текста.
+                    if let (Some(id), Some(kind)) = (
+                        part.get("id").and_then(|x| x.as_str()),
+                        part.get("type").and_then(|x| x.as_str()),
+                    ) {
+                        if kind == "reasoning" {
+                            reasoning_parts.insert(id.to_string());
+                        } else if kind == "text" {
+                            reasoning_parts.remove(id);
+                        }
+                    }
                     if part.get("type").and_then(|t| t.as_str()) == Some("tool") {
                         let tool = part
                             .get("tool")
@@ -490,10 +520,12 @@ fn record_user_message(app: &AppHandle, session_id: &str, text: &str) {
     entry.push(ConversationMessage {
         role: "user".into(),
         text: text.to_string(),
+        reasoning: String::new(),
     });
     entry.push(ConversationMessage {
         role: "assistant".into(),
         text: String::new(),
+        reasoning: String::new(),
     });
     drop(conv);
 
@@ -512,6 +544,19 @@ fn append_assistant_delta(app: &AppHandle, session_id: &str, delta: &str) {
         if let Some(last) = msgs.last_mut() {
             if last.role == "assistant" {
                 last.text.push_str(delta);
+            }
+        }
+    }
+}
+
+/// Дописывает фрагмент размышлений (reasoning) в последний ответ ассистента.
+fn append_assistant_reasoning_delta(app: &AppHandle, session_id: &str, delta: &str) {
+    let store = app.state::<ConversationStore>();
+    let mut conv = store.conversations.lock().unwrap();
+    if let Some(msgs) = conv.get_mut(session_id) {
+        if let Some(last) = msgs.last_mut() {
+            if last.role == "assistant" {
+                last.reasoning.push_str(delta);
             }
         }
     }
@@ -711,12 +756,20 @@ pub fn fetch_session_history(port: u16, session_id: &str) -> Result<Vec<Conversa
             .map(|p| p.text.trim())
             .collect::<Vec<_>>()
             .join("\n\n");
-        if text.is_empty() {
+        let reasoning = entry
+            .parts
+            .iter()
+            .filter(|p| p.kind == "reasoning" && !p.text.trim().is_empty())
+            .map(|p| p.text.trim())
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        if text.is_empty() && reasoning.is_empty() {
             continue; // пропускаем сообщения-инструменты без текста
         }
         messages.push(ConversationMessage {
             role: entry.info.role,
             text,
+            reasoning,
         });
     }
     Ok(messages)

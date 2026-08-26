@@ -129,10 +129,30 @@ class AppController extends ChangeNotifier {
         final text = event.data['text'] as String? ?? '';
         if (messages.isNotEmpty && messages.last.isAssistant) {
           final last = messages.last;
-          messages[messages.length - 1] =
-              ConversationMessage(role: last.role, text: last.text + text);
+          messages[messages.length - 1] = ConversationMessage(
+            role: last.role,
+            text: last.text + text,
+            reasoning: last.reasoning,
+          );
         } else {
           messages.add(ConversationMessage(role: 'assistant', text: text));
+        }
+        notifyListeners();
+        break;
+      case 'opencode-reasoning-delta':
+        if (event.data['sessionId'] != sessionId) return;
+        final delta = event.data['text'] as String? ?? '';
+        if (messages.isNotEmpty && messages.last.isAssistant) {
+          final last = messages.last;
+          messages[messages.length - 1] = ConversationMessage(
+            role: last.role,
+            text: last.text,
+            reasoning: last.reasoning + delta,
+          );
+        } else {
+          messages.add(
+            ConversationMessage(role: 'assistant', text: '', reasoning: delta),
+          );
         }
         notifyListeners();
         break;

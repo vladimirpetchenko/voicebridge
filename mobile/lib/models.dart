@@ -110,13 +110,19 @@ class OpenCodeTarget {
 class ConversationMessage {
   final String role;
   final String text;
+  final String reasoning;
 
-  const ConversationMessage({required this.role, required this.text});
+  const ConversationMessage({
+    required this.role,
+    required this.text,
+    this.reasoning = '',
+  });
 
   factory ConversationMessage.fromJson(Map<String, dynamic> json) {
     return ConversationMessage(
       role: json['role'] as String? ?? '',
       text: json['text'] as String? ?? '',
+      reasoning: json['reasoning'] as String? ?? '',
     );
   }
 

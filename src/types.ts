@@ -46,6 +46,7 @@ export interface ToolAction {
 export interface ConversationMessage {
   role: string;
   text: string;
+  reasoning?: string;
 }
 
 export interface PermissionRequest {

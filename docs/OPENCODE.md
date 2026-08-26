@@ -44,6 +44,11 @@ state:{status: pending|running|completed|error}}`, `{type:"step-start"}`,
 промежуточные (только `tool`/`step-*` без текста) и финальное с `text`.
 Текстовые сообщения — это `parts` с `type=="text"`.
 
+Размышления (reasoning) — это отдельные `parts` с `type=="reasoning"`, текст
+лежит в поле `text`. В SSE они стримятся тем же `message.part.delta` с
+`field=="text"`, но с `partID` reasoning-парта; тип парта приходит раньше в
+`message.part.updated` (`part.type == "reasoning"`).
+
 ## SSE `/event` — формат
 
 Строки вида `data: {"id":"evt_…","type":"…","properties":{…}}` через `\n\n`.
