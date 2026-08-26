@@ -81,54 +81,6 @@ fn extract_port(name: &str) -> Option<u16> {
         .ok()
 }
 
-/// Запрашивает корневую папку проекта (worktree) у сервера OpenCode.
-fn project_worktree(port: u16) -> Option<String> {
-    #[derive(Deserialize)]
-    struct CurrentProject {
-        #[serde(default)]
-        worktree: String,
-    }
-    let client = http_client(Duration::from_millis(500));
-    let resp = client
-        .get(format!("{}/project/current", base_url(port)))
-        .send()
-        .ok()?;
-    if !resp.status().is_success() {
-        return None;
-    }
-    let p: CurrentProject = resp.json().ok()?;
-    if p.worktree.is_empty() {
-        None
-    } else {
-        Some(p.worktree)
-    }
-}
-
-/// Имя инстанса: имя папки проекта (worktree), либо имя первой сессии как запасной вариант.
-fn instance_name(port: u16, sessions: &[OpenCodeSession]) -> String {
-    let worktree_name = project_worktree(port)
-        .as_deref()
-        .and_then(|w| Path::new(w).file_name())
-        .map(|n| n.to_string_lossy().into_owned());
-
-    if let Some(name) = worktree_name.filter(|n| !n.is_empty()) {
-        return name;
-    }
-
-    let session_name = sessions
-        .iter()
-        .find(|s| !s.directory.is_empty())
-        .and_then(|s| Path::new(&s.directory).file_name())
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_default();
-
-    if session_name.is_empty() {
-        format!("OpenCode")
-    } else {
-        session_name
-    }
-}
-
 /// PID процессов opencode на Windows (через `tasklist`).
 #[cfg(target_os = "windows")]
 fn opencode_pids_windows() -> Vec<u32> {
@@ -234,10 +186,16 @@ fn candidate_ports() -> Vec<u16> {
     ports
 }
 
-/// Опрашивает порты и возвращает обнаруженные экземпляры OpenCode с их сессиями.
+/// Опрашивает порты и возвращает обнаруженные проекты OpenCode с их сессиями.
+///
+/// `opencode serve` отдаёт глобальный список сессий (все проекты сразу), а
+/// `/project/current` — глобальный проект (`/`), поэтому группируем сессии по
+/// их `directory` (папке проекта), а не по серверу/порту.
 pub fn discover_instances() -> Vec<OpenCodeInstance> {
     let client = http_client(Duration::from_millis(800));
-    let mut instances = Vec::new();
+    let mut running_ports: Vec<u16> = Vec::new();
+    let mut by_dir: std::collections::BTreeMap<String, Vec<OpenCodeSession>> =
+        std::collections::BTreeMap::new();
 
     for port in candidate_ports() {
         let url = format!("{}/session", base_url(port));
@@ -252,16 +210,66 @@ pub fn discover_instances() -> Vec<OpenCodeInstance> {
             Ok(list) => list.into_iter().map(OpenCodeSession::from).collect(),
             Err(_) => continue,
         };
-        let name = instance_name(port, &sessions);
-        log::info!("discovered opencode instance: {name} (port {port})");
-        instances.push(OpenCodeInstance {
-            id: format!("port-{port}"),
-            name,
-            port,
-            sessions,
-        });
+        running_ports.push(port);
+        for s in sessions {
+            if s.directory.is_empty() {
+                continue;
+            }
+            let entry = by_dir.entry(s.directory.clone()).or_default();
+            if !entry.iter().any(|x| x.id == s.id) {
+                entry.push(s);
+            }
+        }
     }
 
+    if running_ports.is_empty() {
+        return Vec::new();
+    }
+
+    // Ручной глобальный сервер (opencode serve на порту по умолчанию) отдаёт
+    // сессии всех проектов — в этом случае показываем все проекты.
+    let has_default_port = running_ports.iter().any(|p| DEFAULT_PORTS.contains(p));
+
+    let mut instances: Vec<OpenCodeInstance> = by_dir
+        .into_iter()
+        .filter_map(|(directory, mut sessions)| {
+            // Показываем проект только если запущен его «собственный» сервер
+            // (порт project_port) или есть ручной глобальный сервер.
+            let own_port = project_port(&directory);
+            let port = if running_ports.contains(&own_port) {
+                own_port
+            } else if has_default_port {
+                running_ports
+                    .iter()
+                    .copied()
+                    .find(|p| DEFAULT_PORTS.contains(p))
+                    .unwrap_or(running_ports[0])
+            } else {
+                return None;
+            };
+            sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+            let name = Path::new(&directory)
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| directory.clone());
+            log::info!(
+                "discovered opencode project: {name} (port {port}, {} sessions)",
+                sessions.len()
+            );
+            Some(OpenCodeInstance {
+                id: directory.clone(),
+                name,
+                port,
+                sessions,
+            })
+        })
+        .collect();
+
+    instances.sort_by(|a, b| {
+        let au = a.sessions.iter().map(|s| s.updated_at).max().unwrap_or(0);
+        let bu = b.sessions.iter().map(|s| s.updated_at).max().unwrap_or(0);
+        bu.cmp(&au)
+    });
     instances
 }
 
@@ -357,6 +365,7 @@ fn read_sse(
                 }
             }
             "session.idle" => {
+                log::info!("opencode response finished ({} chars)", text.chars().count());
                 finish_response(app, session_id, text);
                 return;
             }
@@ -418,6 +427,7 @@ fn read_sse(
     }
 
     // Поток завершился (соединение закрыто) — фиксируем накопленный текст.
+    log::info!("opencode SSE stream ended ({} chars)", text.chars().count());
     finish_response(app, session_id, text);
 }
 
@@ -538,6 +548,13 @@ pub fn remember_session_title(app: &AppHandle, session_id: &str, title: &str) {
     titles.insert(session_id.to_string(), title.to_string());
 }
 
+/// Запоминает имя проекта (папки) сессии (для шапки окна чата).
+pub fn remember_session_project(app: &AppHandle, session_id: &str, project: &str) {
+    let store = app.state::<ConversationStore>();
+    let mut projects = store.projects.lock().unwrap();
+    projects.insert(session_id.to_string(), project.to_string());
+}
+
 /// Список id сессий, для которых сейчас открыто окно чата.
 pub fn open_session_ids(app: &AppHandle) -> Vec<String> {
     let store = app.state::<ConversationStore>();
@@ -585,15 +602,6 @@ pub fn mark_session_closed(app: &AppHandle, session_id: &str) {
     }
 
     let _ = app.emit("sessions-open-changed", open_session_ids(app));
-}
-
-/// Имя проекта (basename корневой папки) по порту экземпляра.
-pub fn project_name(port: u16) -> String {
-    project_worktree(port)
-        .as_deref()
-        .and_then(|w| Path::new(w).file_name())
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_default()
 }
 
 /// Приблизительный лимит контекста модели (в токенах). В API OpenCode точного
@@ -913,20 +921,31 @@ pub fn opencode_binary() -> String {
     }
     #[cfg(target_os = "windows")]
     {
-        // `where opencode` выводит пути (по одному на строку).
-        // Предпочитаем нативный .exe, иначе — npm-шим .cmd/.bat.
-        if let Ok(out) = Command::new("where").arg("opencode").output() {
-            let s = String::from_utf8_lossy(&out.stdout);
-            let candidates: Vec<&str> = s
-                .lines()
-                .map(|l| l.trim())
-                .filter(|l| !l.is_empty())
-                .collect();
-            if let Some(p) = candidates.iter().find(|p| p.ends_with(".exe")) {
-                return p.to_string();
+        // `where opencode` отдаёт пути в OEM-кодировке (CP866/CP1251), поэтому
+        // для путей с кириллицей при декодировании в UTF-8 получается «мусор»
+        // и файл не находится. Ищем бинарник напрямую по каталогам из PATH
+        // (env::var возвращает корректную строку). npm-шим содержит `opencode`
+        // (bash-скрипт), `opencode.cmd` и `opencode.ps1`; запускать напрямую
+        // можно только .exe и .cmd/.bat, поэтому предпочитаем их.
+        if let Ok(path_var) = std::env::var("PATH") {
+            let mut shim: Option<std::path::PathBuf> = None;
+            for dir in std::env::split_paths(&path_var) {
+                let exe = dir.join("opencode.exe");
+                if exe.is_file() {
+                    return exe.to_string_lossy().into_owned();
+                }
+                if shim.is_none() {
+                    for name in ["opencode.cmd", "opencode.bat"] {
+                        let candidate = dir.join(name);
+                        if candidate.is_file() {
+                            shim = Some(candidate);
+                            break;
+                        }
+                    }
+                }
             }
-            if let Some(p) = candidates.first() {
-                return p.to_string();
+            if let Some(p) = shim {
+                return p.to_string_lossy().into_owned();
             }
         }
     }
@@ -949,8 +968,12 @@ fn opencode_command(bin: &str) -> Command {
 
 /// Стабильный порт для проекта (по хэшу пути, диапазон 4100–4199).
 fn project_port(worktree: &str) -> u16 {
+    // Нормализуем разделители: `opencode db` отдаёт пути с `/`, а `GET /session`
+    // и диалог выбора папки — с `\`. Без нормализации один и тот же проект
+    // получал бы разные порты.
+    let normalized = worktree.replace('\\', "/");
     let mut h: u32 = 2_166_136_261;
-    for b in worktree.bytes() {
+    for b in normalized.bytes() {
         h ^= b as u32;
         h = h.wrapping_mul(16_777_619);
     }

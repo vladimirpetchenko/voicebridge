@@ -164,6 +164,8 @@ pub struct ConversationStore {
     pub conversations: Mutex<HashMap<String, Vec<ConversationMessage>>>,
     pub ports: Mutex<HashMap<String, u16>>,
     pub titles: Mutex<HashMap<String, String>>,
+    /// Имя проекта (папки) для сессии — для шапки окна чата.
+    pub projects: Mutex<HashMap<String, String>>,
     /// Сессии, для которых сейчас открыто окно чата.
     pub open_sessions: Mutex<HashSet<String>>,
 }
@@ -174,6 +176,7 @@ impl Default for ConversationStore {
             conversations: Mutex::new(HashMap::new()),
             ports: Mutex::new(HashMap::new()),
             titles: Mutex::new(HashMap::new()),
+            projects: Mutex::new(HashMap::new()),
             open_sessions: Mutex::new(HashSet::new()),
         }
     }

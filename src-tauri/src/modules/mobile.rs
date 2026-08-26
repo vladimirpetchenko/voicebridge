@@ -226,7 +226,7 @@ fn run_command(
 ) -> Result<serde_json::Value, String> {
     match name {
         "ping" => Ok(serde_json::json!({ "pong": true })),
-        "list_sessions" => Ok(serde_json::to_value(crate::commands::list_opencode_sessions())
+        "list_sessions" => Ok(serde_json::to_value(crate::modules::opencode::discover_instances())
             .unwrap_or(serde_json::Value::Array(vec![]))),
         "get_state" => Ok(serde_json::to_value(crate::commands::get_app_state(app.clone()))
             .unwrap_or(serde_json::Value::Null)),
