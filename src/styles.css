@@ -427,6 +427,7 @@ body {
 .settings-panel {
   width: 100%;
   max-width: 560px;
+  max-height: calc(100vh - 32px);
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: 16px;
@@ -434,6 +435,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  overflow: hidden;
 }
 
 .settings-panel h2 {
@@ -471,6 +473,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .field {
