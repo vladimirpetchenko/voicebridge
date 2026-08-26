@@ -203,9 +203,8 @@ fn dispatch(app: &AppHandle, text: &str) -> Option<String> {
     let v: serde_json::Value = serde_json::from_str(text).ok()?;
     let id = v.get("id").and_then(|x| x.as_str()).unwrap_or("");
     let name = v.get("name").and_then(|x| x.as_str()).unwrap_or("");
-    let args = v.get("args").cloned().unwrap_or_else(|| serde_json::json!({}));
 
-    let result = run_command(app, name, &args);
+    let result = run_command(app, name, &v);
     let resp = match result {
         Ok(data) => serde_json::json!({ "type": "response", "id": id, "ok": true, "data": data }),
         Err(e) => serde_json::json!({ "type": "response", "id": id, "ok": false, "error": e }),
