@@ -62,7 +62,8 @@
 - Настройки заполнены (Модели, Микрофон, OpenCode, Горячие клавиши,
   О программе, Мобильный доступ). Файловый логгер (`voicebridge.log`) +
   перехват паник.
-- CI: GitHub Actions собирает `.exe` (Windows) и `.dmg` (macOS) по тегу `v*`.
+- CI: GitHub Actions собирает `.exe` (Windows), `.dmg` (macOS) и Android APK
+  (Flutter, `mobile/`) по тегу `v*` или вручную.
 
 **Что НЕ сделано (кандидаты на продолжение):**
 - Завершение автообновлений: `bundle.createUpdaterArtifacts` выключен (иначе
