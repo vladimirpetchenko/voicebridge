@@ -59,20 +59,22 @@
   вшит), команда `check_update` + кнопка «Проверить обновления» в «О программе».
   Ключ подписи: `src-tauri/voicebridge-signing.key` (gitignored), в CI —
   `TAURI_SIGNING_PRIVATE_KEY`.
-- Настройки заполнены (Модели, Микрофон, OpenCode, Вставка, Горячие клавиши,
-  О программе). Файловый логгер (`voicebridge.log`) + перехват паник.
+- Настройки заполнены (Модели, Микрофон, OpenCode, Горячие клавиши,
+  О программе, Мобильный доступ). Файловый логгер (`voicebridge.log`) +
+  перехват паник.
 - CI: GitHub Actions собирает `.exe` (Windows) и `.dmg` (macOS) по тегу `v*`.
 
 **Что НЕ сделано (кандидаты на продолжение):**
-- **GUI-автоматизация** — `src-tauri/src/modules/automation.rs` возвращает
-  пустой список; нужны системные API: на macOS `CGWindowListCopyWindowInfo`
-  для списка окон, на Windows `EnumWindows`; вставка текста (симуляция клавиш /
-  буфер обмена + Ctrl+V). Команда `list_windows` и настройки вставки уже есть.
 - Завершение автообновлений: `bundle.createUpdaterArtifacts` выключен (иначе
   сборка требует ключ); нужно добавить секрет `TAURI_SIGNING_PRIVATE_KEY` в CI,
   включить `createUpdaterArtifacts`, подписать/нотаризировать `.app` (macOS),
   собрать `.msi`/NSIS (Windows) и публиковать артефакты + `latest.json` в
   GitHub Releases.
+- **GUI-автоматизация (отложено на самый конец)** — вставка распознанного
+  текста в выбранное окно. Объёмная задача: системные API (macOS
+  `CGWindowListCopyWindowInfo`, Windows `EnumWindows`), вставка текста
+  (симуляция клавиш / буфер обмена + Ctrl/Cmd+V). В текущей сборке не
+  реализована.
 
 **Мобильное приложение (текущий фокус, ветка `feature/mobile-app`):**
 - Идея: Flutter-приложение управляет десктопом по локальной сети (LAN), десктоп

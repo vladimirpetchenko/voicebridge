@@ -44,11 +44,8 @@ pub fn run() {
             if let Some(loaded) = commands::load_state(&handle) {
                 let st = handle.state::<state::SharedState>();
                 let mut s = st.0.lock().unwrap();
-                s.mode = loaded.mode;
                 s.sensitivity = loaded.sensitivity;
                 s.silence_timeout = loaded.silence_timeout;
-                s.paste_method = loaded.paste_method;
-                s.paste_delay_ms = loaded.paste_delay_ms;
                 s.send_mode = loaded.send_mode;
                 s.hotkey = loaded.hotkey;
                 s.language = loaded.language;
@@ -56,7 +53,6 @@ pub fn run() {
                 s.selected_microphone = loaded.selected_microphone;
                 s.selected_session = loaded.selected_session;
                 s.opencode_model = loaded.opencode_model;
-                s.selected_window = loaded.selected_window;
                 s.mobile_enabled = loaded.mobile_enabled;
                 s.mobile_port = loaded.mobile_port;
                 s.mobile_token = loaded.mobile_token;
@@ -113,7 +109,6 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_app_state,
-            commands::set_mode,
             commands::toggle_recording,
             commands::start_recording,
             commands::stop_recording,
@@ -121,8 +116,6 @@ pub fn run() {
             commands::select_microphone,
             commands::set_sensitivity,
             commands::set_silence_timeout,
-            commands::set_paste_method,
-            commands::set_paste_delay,
             commands::set_send_mode,
             commands::set_hotkey,
             commands::send_text,
@@ -137,7 +130,6 @@ pub fn run() {
             commands::list_projects,
             commands::start_project,
             commands::stop_project,
-            commands::list_windows,
             commands::get_models,
             commands::download_model,
             commands::select_stt_model,

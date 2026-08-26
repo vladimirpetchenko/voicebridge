@@ -5,14 +5,12 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
-  Bot,
   Check,
   Copy,
   FileText,
   Globe,
   Mic,
   MicVocal,
-  MousePointer2,
   Pencil,
   Play,
   Plus,
@@ -32,7 +30,6 @@ import type {
   OpenCodeInstance,
   OpenCodeSession,
   Project,
-  AppMode,
   SttModelInfo,
   DownloadProgress,
   ToolAction,
@@ -46,14 +43,11 @@ import type {
 } from "./types";
 
 const DEFAULT_STATE: AppState = {
-  mode: "opencode",
   status: "idle",
   statusMessage: "Готов к работе",
   recording: false,
   sensitivity: 1,
   silenceTimeout: 3,
-  pasteMethod: "clipboard",
-  pasteDelayMs: 500,
   sendMode: "direct",
   hotkey: "Cmd+Shift+V",
   mobileEnabled: false,
@@ -68,19 +62,12 @@ const DEFAULT_STATE: AppState = {
   selectedSession: null,
   opencodeModel: null,
   activeInstance: null,
-  selectedWindow: null,
-};
-
-const MODE_LABELS: Record<AppMode, string> = {
-  opencode: "OpenCode",
-  gui: "GUI",
 };
 
 const SETTINGS_TABS = [
   "Модели",
   "Микрофон",
   "OpenCode",
-  "Вставка",
   "Горячие клавиши",
   "Мобильный доступ",
   "О программе",
@@ -271,10 +258,6 @@ function MainApp() {
     return () => clearInterval(t);
   }, []);
 
-  const setMode = useCallback((mode: AppMode) => {
-    invoke("set_mode", { mode }).catch((e) => setError(String(e)));
-  }, []);
-
   const selectMicrophone = useCallback((name: string) => {
     invoke("select_microphone", { name }).catch((e) => setError(String(e)));
   }, []);
@@ -388,14 +371,6 @@ function MainApp() {
       })
       .catch((e) => setError(String(e)));
    }, []);
-
-  const setPasteMethod = useCallback((method: string) => {
-    invoke("set_paste_method", { method }).catch((e) => setError(String(e)));
-  }, []);
-
-  const setPasteDelay = useCallback((ms: number) => {
-    invoke("set_paste_delay", { ms }).catch((e) => setError(String(e)));
-  }, []);
 
   const setSendMode = useCallback((mode: string) => {
     invoke("set_send_mode", { mode }).catch((e) => setError(String(e)));
@@ -515,23 +490,7 @@ function MainApp() {
         </div>
       </header>
 
-      <section className="mode-switch" role="tablist">
-        {(Object.keys(MODE_LABELS) as AppMode[]).map((mode) => (
-          <button
-            key={mode}
-            role="tab"
-            aria-selected={state.mode === mode}
-            className={`mode-btn ${state.mode === mode ? "active" : ""}`}
-            onClick={() => setMode(mode)}
-          >
-            {mode === "opencode" ? <Bot size={16} /> : <MousePointer2 size={16} />}
-            <span>{mode === "opencode" ? "OpenCode" : "GUI"}</span>
-          </button>
-        ))}
-      </section>
-
-      {state.mode === "opencode" && (
-        <section className="projects-panel">
+      <section className="projects-panel">
           <div className="panel-header">
             <span>Проекты</span>
             <div className="panel-header-actions">
@@ -577,10 +536,8 @@ function MainApp() {
             ))}
           </div>
         </section>
-      )}
 
-      {state.mode === "opencode" && (
-        <section className="sessions-panel">
+      <section className="sessions-panel">
           <div className="panel-header">
             <span>Сессии OpenCode</span>
             <button className="link-btn" onClick={refreshInstances} title="Обновить сессии">
@@ -641,7 +598,6 @@ function MainApp() {
             })}
           </div>
         </section>
-      )}
 
       <footer className="app-footer">
         <span className="shortcut-hint" title="Глобальная горячая клавиша записи">
@@ -660,26 +616,22 @@ function MainApp() {
         <span
           className="target-hint"
           title={
-            state.mode === "opencode"
-              ? state.selectedSession
-                ? state.opencodeModel
-                  ? `Модель: ${state.opencodeModel}`
-                  : `Сессия: ${state.selectedSession.title}`
-                : state.activeInstance
-                  ? `Экземпляр: ${state.activeInstance.name}`
-                  : "Чат не выбран"
-              : "GUI-режим"
+            state.selectedSession
+              ? state.opencodeModel
+                ? `Модель: ${state.opencodeModel}`
+                : `Сессия: ${state.selectedSession.title}`
+              : state.activeInstance
+                ? `Экземпляр: ${state.activeInstance.name}`
+                : "Чат не выбран"
           }
         >
-          {state.mode === "opencode"
-            ? state.selectedSession
-              ? state.opencodeModel
-                ? prettifyModel(state.opencodeModel)
-                : state.selectedSession.title
-              : state.activeInstance
-                ? state.activeInstance.name
-                : "чат не выбран"
-            : state.selectedWindow?.appName ?? "GUI"}
+          {state.selectedSession
+            ? state.opencodeModel
+              ? prettifyModel(state.opencodeModel)
+              : state.selectedSession.title
+            : state.activeInstance
+              ? state.activeInstance.name
+              : "чат не выбран"}
         </span>
       </footer>
 
@@ -857,36 +809,6 @@ function MainApp() {
                   Запущенные серверы OpenCode находятся автоматически (по процессам
                   и портам 4096/12000/3000/17000) и обновляются каждые 5 секунд.
                 </div>
-              </div>
-            )}
-
-            {settingsTab === "Вставка" && (
-              <div className="settings-content">
-                <label className="field">
-                  <span className="field-label">Способ вставки</span>
-                  <select
-                    className="select"
-                    value={state.pasteMethod}
-                    onChange={(e) => setPasteMethod(e.target.value)}
-                  >
-                    <option value="clipboard">Буфер обмена + Ctrl/Cmd+V (быстро)</option>
-                    <option value="keys">Симуляция нажатий клавиш (медленно, везде)</option>
-                    <option value="accessibility">Accessibility API (экспериментально)</option>
-                  </select>
-                </label>
-                <label className="field">
-                  <span className="field-label">
-                    Задержка перед вставкой: {state.pasteDelayMs} мс
-                  </span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={3000}
-                    step={100}
-                    value={state.pasteDelayMs}
-                    onChange={(e) => setPasteDelay(parseInt(e.target.value, 10))}
-                  />
-                </label>
               </div>
             )}
 

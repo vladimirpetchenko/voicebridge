@@ -1,4 +1,3 @@
-export type AppMode = "opencode" | "gui";
 export type AppStatus = "idle" | "recording" | "processing" | "error";
 
 export interface OpenCodeSession {
@@ -107,12 +106,6 @@ export interface KnownDevice {
   lastSeen: number;
 }
 
-export interface WindowInfo {
-  id: string;
-  title: string;
-  appName: string;
-}
-
 export interface SttModelInfo {
   id: string;
   name: string;
@@ -131,14 +124,11 @@ export interface DownloadProgress {
 }
 
 export interface AppState {
-  mode: AppMode;
   status: AppStatus;
   statusMessage: string;
   recording: boolean;
   sensitivity: number;
   silenceTimeout: number;
-  pasteMethod: string;
-  pasteDelayMs: number;
   sendMode: string;
   hotkey: string;
   mobileEnabled: boolean;
@@ -153,5 +143,4 @@ export interface AppState {
   selectedSession: OpenCodeTarget | null;
   opencodeModel: string | null;
   activeInstance: OpenCodeInstanceRef | null;
-  selectedWindow: WindowInfo | null;
 }

@@ -45,10 +45,10 @@ npm run build            # tsc + vite build
 
 ## Команды и события (мост Rust ↔ фронтенд)
 
-- Команды (`invoke`): `get_app_state`, `set_mode`, `toggle_recording`,
+- Команды (`invoke`): `get_app_state`, `toggle_recording`,
   `start_recording`, `stop_recording`, `list_microphones`, `select_microphone`,
-  `set_sensitivity`, `set_silence_timeout`, `set_paste_method`,
-  `set_paste_delay`, `set_send_mode`, `set_hotkey`, `send_text`, `list_opencode_sessions`,
+  `set_sensitivity`, `set_silence_timeout`, `set_send_mode`, `set_hotkey`,
+  `send_text`, `list_opencode_sessions`,
   `select_opencode_session`, `select_opencode_instance`, `list_projects`,
   `start_project`, `stop_project`, `get_models`, `download_model`,
   `select_stt_model`, `set_language`, `open_response_window`,
@@ -126,9 +126,7 @@ OpenCode выбранной сессии (`opencode_model` из `/session`). Г�
 `src-tauri/voicebridge-signing.key` (gitignored); в CI передаётся через
 `TAURI_SIGNING_PRIVATE_KEY`.
 
-Не сделано: GUI-автоматизация (`modules/automation.rs` — заглушка, нужны
-системные API: macOS CGWindowList, Windows EnumWindows; настройки вставки в
-`AppState` уже есть). Автообновления подключены частично: `createUpdaterArtifacts`
+Не сделано: автообновления подключены частично: `createUpdaterArtifacts`
 выключен (иначе сборка требует ключ), не хватает секрета `TAURI_SIGNING_PRIVATE_KEY`
 в CI, подписи/нотаризации `.app` под macOS, сборки `.msi`/NSIS под Windows и
 публикации артефактов + манифеста `latest.json` в релиз.
@@ -143,3 +141,11 @@ Flutter-клиент в `mobile/` (этапы 2–3 готовы): пейрин�
 лаунчер сессий, чат со стримом/инструментами, карточки разрешений/вопросов,
 строка токенов/стоимости, авто-переподключение. Осталось — этап 4 (вне LAN:
 Tailscale/ZeroTier или облачный relay, пуши).
+
+## Планы (отложено на самый конец)
+
+GUI-автоматизация — вставка распознанного текста в выбранное окно. Объёмная
+задача, отложена на самый конец: системные API для списка окон (macOS
+`CGWindowListCopyWindowInfo`, Windows `EnumWindows`), вставка текста (симуляция
+нажатий клавиш / буфер обмена + Ctrl/Cmd+V / Accessibility API). В текущей
+сборке не реализована (модуль `automation.rs` и режим «GUI» удалены).

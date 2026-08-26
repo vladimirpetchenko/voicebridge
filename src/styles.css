@@ -92,43 +92,6 @@ body {
   background: var(--bg-panel-2);
 }
 
-/* Mode switch */
-.mode-switch {
-  display: flex;
-  gap: 8px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 5px;
-}
-
-.mode-btn {
-  flex: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 9px 12px;
-  border-radius: 8px;
-  border: none;
-  background: transparent;
-  color: var(--text-dim);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.mode-btn:hover {
-  color: var(--text);
-}
-
-.mode-btn.active {
-  background: var(--bg-panel-2);
-  color: var(--text);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
-}
-
 /* Recorder */
 .recorder {
   display: flex;

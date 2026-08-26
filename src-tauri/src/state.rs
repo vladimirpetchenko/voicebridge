@@ -4,14 +4,6 @@ use std::sync::Mutex;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
-pub enum AppMode {
-    #[default]
-    OpenCode,
-    Gui,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "lowercase")]
 pub enum AppStatus {
     #[default]
     Idle,
@@ -58,15 +50,6 @@ pub struct OpenCodeInstanceRef {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WindowInfo {
-    pub id: String,
-    pub title: String,
-    pub app_name: String,
-}
-
-/// Известное мобильное устройство (пара «мобилка ↔ десктоп»).
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct KnownDevice {
     pub id: String,
     pub name: String,
@@ -76,14 +59,11 @@ pub struct KnownDevice {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppState {
-    pub mode: AppMode,
     pub status: AppStatus,
     pub status_message: String,
     pub recording: bool,
     pub sensitivity: f32,
     pub silence_timeout: f32,
-    pub paste_method: String,
-    pub paste_delay_ms: u32,
     pub send_mode: String,
     pub hotkey: String,
     pub language: String,
@@ -107,8 +87,6 @@ pub struct AppState {
     pub opencode_model: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub active_instance: Option<OpenCodeInstanceRef>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub selected_window: Option<WindowInfo>,
     /// Известные (сохранённые) мобильные устройства.
     #[serde(default)]
     pub known_devices: Vec<KnownDevice>,
@@ -117,14 +95,11 @@ pub struct AppState {
 impl Default for AppState {
     fn default() -> Self {
         Self {
-            mode: AppMode::OpenCode,
             status: AppStatus::Idle,
             status_message: "Готов к работе".into(),
             recording: false,
             sensitivity: 1.0,
             silence_timeout: 3.0,
-            paste_method: "clipboard".into(),
-            paste_delay_ms: 500,
             send_mode: "direct".into(),
             hotkey: if cfg!(target_os = "macos") {
                 "Cmd+Shift+V".into()
@@ -143,7 +118,6 @@ impl Default for AppState {
             selected_session: None,
             opencode_model: None,
             active_instance: None,
-            selected_window: None,
             known_devices: Vec::new(),
         }
     }

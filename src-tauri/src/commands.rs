@@ -1,4 +1,4 @@
-use crate::state::{AppMode, AppState, AppStatus, SharedState};
+use crate::state::{AppState, AppStatus, SharedState};
 use tauri::{AppHandle, Emitter, Manager};
 
 fn current_state(app: &AppHandle) -> AppState {
@@ -124,14 +124,14 @@ pub fn handle_stop_recording(app: &AppHandle) {
 /// Устанавливает распознанный текст и запускает отправку в OpenCode.
 /// Если сессия не выбрана — она будет создана автоматически.
 pub fn finish_transcription(app: &AppHandle, text: String) {
-    let (mode, send_mode, target_session) = {
+    let (send_mode, target_session) = {
         let state = app.state::<SharedState>();
         let s = state.0.lock().unwrap();
         let target = s
             .recording_session_id
             .clone()
             .or_else(|| s.selected_session.as_ref().map(|t| t.session_id.clone()));
-        (s.mode, s.send_mode.clone(), target)
+        (s.send_mode.clone(), target)
     };
 
     let state = app.state::<SharedState>();
@@ -145,7 +145,7 @@ pub fn finish_transcription(app: &AppHandle, text: String) {
     save_state(app, &snapshot);
 
     // В режиме предпроверки текст остаётся в поле ввода — отправку делает пользователь.
-    if mode == AppMode::OpenCode && send_mode == "direct" {
+    if send_mode == "direct" {
         crate::modules::opencode::send_prompt(app.clone(), text, target_session);
     }
 }
@@ -165,24 +165,6 @@ pub fn fail_transcription(app: &AppHandle, error: String) {
 
 #[tauri::command]
 pub fn get_app_state(app: AppHandle) -> AppState {
-    current_state(&app)
-}
-
-#[tauri::command]
-pub fn set_mode(app: AppHandle, mode: String) -> AppState {
-    let mode = match mode.as_str() {
-        "gui" => AppMode::Gui,
-        _ => AppMode::OpenCode,
-    };
-    let state = app.state::<SharedState>();
-    let mut s = state.0.lock().unwrap();
-    if s.mode != mode {
-        s.mode = mode;
-        let snapshot = s.clone();
-        drop(s);
-        emit_state(&app, &snapshot);
-        save_state(&app, &snapshot);
-    }
     current_state(&app)
 }
 
@@ -270,30 +252,6 @@ pub fn set_silence_timeout(app: AppHandle, seconds: f32) -> AppState {
     let state = app.state::<SharedState>();
     let mut s = state.0.lock().unwrap();
     s.silence_timeout = if seconds <= 0.0 { 0.0 } else { seconds.clamp(1.0, 30.0) };
-    let snapshot = s.clone();
-    drop(s);
-    emit_state(&app, &snapshot);
-    save_state(&app, &snapshot);
-    current_state(&app)
-}
-
-#[tauri::command]
-pub fn set_paste_method(app: AppHandle, method: String) -> AppState {
-    let state = app.state::<SharedState>();
-    let mut s = state.0.lock().unwrap();
-    s.paste_method = method;
-    let snapshot = s.clone();
-    drop(s);
-    emit_state(&app, &snapshot);
-    save_state(&app, &snapshot);
-    current_state(&app)
-}
-
-#[tauri::command]
-pub fn set_paste_delay(app: AppHandle, ms: u32) -> AppState {
-    let state = app.state::<SharedState>();
-    let mut s = state.0.lock().unwrap();
-    s.paste_delay_ms = ms.min(10000);
     let snapshot = s.clone();
     drop(s);
     emit_state(&app, &snapshot);
@@ -512,11 +470,6 @@ pub fn start_project(worktree: String) -> Result<Vec<crate::modules::opencode::P
 pub fn stop_project(worktree: String) -> Result<Vec<crate::modules::opencode::Project>, String> {
     crate::modules::opencode::stop_project(&worktree)?;
     Ok(crate::modules::opencode::list_projects())
-}
-
-#[tauri::command]
-pub fn list_windows() -> Vec<crate::state::WindowInfo> {
-    crate::modules::automation::list_windows()
 }
 
 #[tauri::command]
