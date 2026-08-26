@@ -6,6 +6,7 @@ export interface OpenCodeSession {
   title: string;
   directory: string;
   updatedAt: number;
+  model: string;
 }
 
 export interface OpenCodeInstance {
@@ -131,6 +132,7 @@ export interface AppState {
   recordingSessionId: string | null;
   selectedMicrophone: string | null;
   selectedSession: OpenCodeTarget | null;
+  opencodeModel: string | null;
   activeInstance: OpenCodeInstanceRef | null;
   selectedWindow: WindowInfo | null;
 }

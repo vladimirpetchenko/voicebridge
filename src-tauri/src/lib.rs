@@ -53,6 +53,7 @@ pub fn run() {
                 s.selected_model = loaded.selected_model;
                 s.selected_microphone = loaded.selected_microphone;
                 s.selected_session = loaded.selected_session;
+                s.opencode_model = loaded.opencode_model;
                 s.selected_window = loaded.selected_window;
             }
 

@@ -399,6 +399,7 @@ pub fn select_opencode_session(
     port: u16,
     session_id: String,
     title: String,
+    model: String,
 ) -> AppState {
     let state = app.state::<SharedState>();
     let mut s = state.0.lock().unwrap();
@@ -408,6 +409,11 @@ pub fn select_opencode_session(
         session_id: session_id.clone(),
         title: title.clone(),
     });
+    s.opencode_model = if model.is_empty() {
+        None
+    } else {
+        Some(model)
+    };
     s.active_instance = Some(crate::state::OpenCodeInstanceRef {
         id: instance_id,
         port,

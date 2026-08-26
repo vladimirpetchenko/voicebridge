@@ -27,6 +27,7 @@ pub struct OpenCodeSession {
     pub title: String,
     pub directory: String,
     pub updated_at: u64,
+    pub model: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -88,6 +89,9 @@ pub struct AppState {
     pub selected_microphone: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_session: Option<OpenCodeTarget>,
+    /// Модель OpenCode выбранной сессии (для строки состояния лаунчера).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub opencode_model: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub active_instance: Option<OpenCodeInstanceRef>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -113,6 +117,7 @@ impl Default for AppState {
             recording_session_id: None,
             selected_microphone: None,
             selected_session: None,
+            opencode_model: None,
             active_instance: None,
             selected_window: None,
         }

@@ -38,6 +38,13 @@ struct SessionInfo {
     directory: String,
     #[serde(default)]
     time: Option<TimeInfo>,
+    #[serde(default)]
+    model: Option<ModelRef>,
+}
+
+#[derive(Deserialize)]
+struct ModelRef {
+    id: String,
 }
 
 #[derive(Deserialize)]
@@ -59,6 +66,7 @@ impl From<SessionInfo> for OpenCodeSession {
             title: s.title,
             directory: s.directory,
             updated_at,
+            model: s.model.map(|m| m.id).unwrap_or_default(),
         }
     }
 }
@@ -605,17 +613,12 @@ struct UsageTokens {
 }
 
 #[derive(Deserialize)]
-struct UsageModel {
-    id: String,
-}
-
-#[derive(Deserialize)]
 struct UsageSessionDetail {
     #[serde(default)]
     cost: f64,
     tokens: UsageTokens,
     #[serde(default)]
-    model: Option<UsageModel>,
+    model: Option<ModelRef>,
 }
 
 /// Читает использование токенов/средств сессии с сервера OpenCode.

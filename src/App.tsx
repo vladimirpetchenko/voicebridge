@@ -60,6 +60,7 @@ const DEFAULT_STATE: AppState = {
   recordingSessionId: null,
   selectedMicrophone: null,
   selectedSession: null,
+  opencodeModel: null,
   activeInstance: null,
   selectedWindow: null,
 };
@@ -272,6 +273,7 @@ function MainApp() {
       port: inst.port,
       sessionId: session.id,
       title: session.title,
+      model: session.model,
     }).catch((e) => setError(String(e)));
     invoke("open_response_window", {
       sessionId: session.id,
@@ -291,6 +293,7 @@ function MainApp() {
         port: inst.port,
         sessionId: latest.id,
         title: latest.title,
+        model: latest.model,
       }).catch((e) => setError(String(e)));
       invoke("open_response_window", {
         sessionId: latest.id,
@@ -599,7 +602,9 @@ function MainApp() {
           title={
             state.mode === "opencode"
               ? state.selectedSession
-                ? `Сессия: ${state.selectedSession.title}`
+                ? state.opencodeModel
+                  ? `Модель: ${state.opencodeModel}`
+                  : `Сессия: ${state.selectedSession.title}`
                 : state.activeInstance
                   ? `Экземпляр: ${state.activeInstance.name}`
                   : "Чат не выбран"
@@ -608,7 +613,7 @@ function MainApp() {
         >
           {state.mode === "opencode"
             ? state.selectedSession
-              ? state.selectedSession.title
+              ? state.opencodeModel ?? state.selectedSession.title
               : state.activeInstance
                 ? state.activeInstance.name
                 : "чат не выбран"
