@@ -128,3 +128,6 @@ OpenCode выбранной сессии (`opencode_model` из `/session`). Г�
 выключен (иначе сборка требует ключ), не хватает секрета `TAURI_SIGNING_PRIVATE_KEY`
 в CI, подписи/нотаризации `.app` под macOS, сборки `.msi`/NSIS под Windows и
 публикации артефактов + манифеста `latest.json` в релиз.
+
+Мобильное приложение (Flutter, управление десктопом по LAN через WebSocket) —
+спроектировано и расписано в `docs/MOBILE.md` (ветка `feature/mobile-app`).
