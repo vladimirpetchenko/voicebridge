@@ -1140,3 +1140,17 @@ pub fn reject_question(port: u16, request_id: &str) -> Result<(), String> {
         Err(format!("HTTP {}", resp.status()))
     }
 }
+
+/// Прерывает генерацию текущего ответа сессии.
+pub fn abort_session(port: u16, session_id: &str) -> Result<(), String> {
+    let client = http_client(Duration::from_secs(10));
+    let resp = client
+        .post(format!("{}/session/{}/abort", base_url(port), session_id))
+        .send()
+        .map_err(|e| e.to_string())?;
+    if resp.status().is_success() {
+        Ok(())
+    } else {
+        Err(format!("HTTP {}", resp.status()))
+    }
+}

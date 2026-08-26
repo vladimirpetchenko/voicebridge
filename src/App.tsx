@@ -924,6 +924,7 @@ function ResponseView() {
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [info, setInfo] = useState<SessionInfo>({ title: "", project: "" });
   const [usage, setUsage] = useState<SessionUsage | null>(null);
+  const [busy, setBusy] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
 
   const sessionId = useMemo(() => {
@@ -956,6 +957,7 @@ function ResponseView() {
       (e) => {
         if (e.payload.sessionId !== sessionId) return;
         playSend();
+        setBusy(true);
         setTools([]);
         setMessages((m) => [
           ...m,
@@ -983,9 +985,17 @@ function ResponseView() {
     const unlistenDone = listen<{ sessionId: string }>("opencode-done", (e) => {
       if (e.payload.sessionId !== sessionId) return;
       playReceive();
+      setBusy(false);
       // Обновляем счётчики после завершения ответа (БД может чуть отставать).
       setTimeout(refreshUsage, 500);
     });
+    const unlistenOcError = listen<{ sessionId: string; error: string }>(
+      "opencode-error",
+      (e) => {
+        if (e.payload.sessionId !== sessionId) return;
+        setBusy(false);
+      },
+    );
     const unlistenTool = listen<{ sessionId: string } & ToolAction>(
       "opencode-tool",
       (e) => {
@@ -1025,6 +1035,7 @@ function ResponseView() {
       unlistenUser.then((f) => f());
       unlistenDelta.then((f) => f());
       unlistenDone.then((f) => f());
+      unlistenOcError.then((f) => f());
       unlistenTool.then((f) => f());
       unlistenPermission.then((f) => f());
       unlistenQuestion.then((f) => f());
@@ -1047,6 +1058,10 @@ function ResponseView() {
 
   const close = useCallback(() => {
     invoke("close_response_window").catch(() => {});
+  }, []);
+
+  const abort = useCallback(() => {
+    invoke("abort_session").catch(() => {});
   }, []);
 
   const replyPermission = useCallback((req: PermissionRequest, reply: string) => {
@@ -1076,6 +1091,11 @@ function ResponseView() {
           {info.project && <span className="chat-project">{info.project}</span>}
         </div>
         <div className="header-actions">
+          {busy && (
+            <button className="btn stop" onClick={abort} title="Прервать генерацию">
+              <Square size={14} fill="currentColor" /> Стоп
+            </button>
+          )}
           <button className="btn" onClick={close}>
             Закрыть
           </button>

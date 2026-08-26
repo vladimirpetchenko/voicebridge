@@ -126,6 +126,7 @@ pub fn run() {
             commands::get_conversation,
             commands::get_session_info,
             commands::get_session_usage,
+            commands::abort_session,
             commands::close_response_window,
             commands::list_open_session_ids,
             commands::check_update,

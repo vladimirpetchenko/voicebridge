@@ -51,7 +51,7 @@ npm run build            # tsc + vite build
   `start_project`, `stop_project`, `get_models`, `download_model`,
   `select_stt_model`, `set_language`, `open_response_window`,
   `get_conversation`, `get_session_info`, `get_session_usage`,
-  `close_response_window`,
+  `abort_session`, `close_response_window`,
   `list_open_session_ids`, `reply_permission`, `reply_question`,
   `reject_question`, `get_opencode_binary`, `check_update`, `quit_app`.
 - События (`listen`): `state-changed` (AppState), `audio-level` (number),

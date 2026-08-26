@@ -381,6 +381,26 @@ pub fn get_session_usage(
 }
 
 #[tauri::command]
+pub fn abort_session(window: tauri::WebviewWindow, app: AppHandle) -> Result<(), String> {
+    let session_id = window
+        .label()
+        .strip_prefix("response-")
+        .unwrap_or_default();
+    if session_id.is_empty() {
+        return Err("сессия не определена".into());
+    }
+    let port = app
+        .state::<crate::state::ConversationStore>()
+        .ports
+        .lock()
+        .unwrap()
+        .get(session_id)
+        .copied()
+        .ok_or("порт сессии не найден")?;
+    crate::modules::opencode::abort_session(port, session_id)
+}
+
+#[tauri::command]
 pub fn get_opencode_binary() -> String {
     crate::modules::opencode::opencode_binary()
 }
