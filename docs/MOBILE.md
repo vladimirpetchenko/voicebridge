@@ -7,6 +7,13 @@
 Стек мобилки: **Flutter** (Dart). Связь: **локальная сеть (LAN)** по WebSocket,
 без облака. Позже, для работы вне одной сети, рассмотрим Tailscale/ZeroTier.
 
+## Статус
+
+- ✅ **Этап 0–1 (десктоп) готов** — встроенный WebSocket-сервер, токен/QR,
+  диспетчеризация команд и трансляция событий. Протестировано вручную.
+- ⏳ **Этап 2 (Flutter-клиент) — текущая задача.** Всё на ветке
+  `feature/mobile-app`.
+
 ## Архитектура
 
 ```
@@ -22,9 +29,10 @@
 
 - **Протокол**: один WebSocket на команды (мобилка → десктоп) и события
   (десктоп → мобилка).
-- **Адрес**: `ws://<ip-десктопа>:<port>/` (порт по умолчанию `47800`, настраиваемый).
-- **Авторизация**: токен, сгенерированный на десктопе, передаётся при подключении
-  (query-параметр или первое сообщение). Пейринг через QR-код.
+- **Адрес**: `ws://<ip-десктопа>:47800/?token=<token>`.
+- **Healthcheck**: `GET /health` → `ok` (без авторизации).
+- **Авторизация**: токен из query-параметра `token`. Неверный токен → `401`,
+  мобильный доступ выключен → `403`.
 
 ## Пейринг (QR)
 
@@ -45,18 +53,28 @@
 
 ### Команды (мобилка → десктоп)
 
+Команда — JSON-объект с `type: "command"`, уникальным `id` (строка, для
+сопоставления с ответом) и `name`. Остальные поля — аргументы **плоско** в этом же
+объекте (не вложены в `args`).
+
 ```jsonc
-{ "type": "command", "id": "1", "name": "list_sessions" }
-{ "type": "command", "id": "2", "name": "select_session", "sessionId": "ses_…", "title": "…" }
-{ "type": "command", "id": "3", "name": "send_prompt", "text": "сделай …" }
-{ "type": "command", "id": "4", "name": "abort" }
-{ "type": "command", "id": "5", "name": "get_state" }
-{ "type": "command", "id": "6", "name": "get_conversation", "sessionId": "ses_…" }
+{ "type": "command", "id": "1", "name": "ping" }
+{ "type": "command", "id": "2", "name": "list_sessions" }
+{ "type": "command", "id": "3", "name": "get_state" }
+{ "type": "command", "id": "4", "name": "select_session", "instanceId": "port-4149", "port": 4149, "sessionId": "ses_…", "title": "…", "model": "…" }
+{ "type": "command", "id": "5", "name": "send_prompt", "text": "сделай …" }
+{ "type": "command", "id": "6", "name": "send_prompt", "text": "…", "sessionId": "ses_…" }
+{ "type": "command", "id": "7", "name": "abort" }
+{ "type": "command", "id": "8", "name": "abort", "sessionId": "ses_…" }
+{ "type": "command", "id": "9", "name": "get_conversation", "sessionId": "ses_…" }
 ```
 
-- `send_prompt` — отправляет текст в выбранную (или активную) сессию и начинает
-  стриминг; перед отправкой можно явно указать `sessionId`.
-- `abort` — прерывает текущую генерацию (аналог кнопки «Стоп»).
+- `list_sessions` → массив `OpenCodeInstance` (инстансы с `port` и `sessions`,
+  у сессии есть `id/title/model/updatedAt`).
+- `select_session` — обязателен `sessionId`; `port`/`instanceId`/`title`/`model`
+  берутся из данных `list_sessions`.
+- `send_prompt` — без `sessionId` шлёт в выбранную сессию; с `sessionId` — в неё.
+- `abort` — прерывает генерацию (без `sessionId` — выбранную сессию).
 
 ### Ответы на команды (десктоп → мобилка)
 
@@ -82,25 +100,44 @@
 Мобилка не обязана понимать все события сразу — на первом этапе достаточно
 `opencode-user/-delta/-done/-error` для чата.
 
-## Что добавить в десктоп (Rust)
+## Что уже реализовано в десктопе (этапы 0–1)
 
-1. **Зависимости**: `axum` (+ `tokio`), `tokio-tungstenite`/`axum` ws,
-   `rand` (токен), `qr_code` (генерация QR), `local-ip-address` (определение IP).
-2. **Модуль `src-tauri/src/modules/mobile.rs`**:
-   - встроенный WS-сервер, слушает `0.0.0.0:47800`;
-   - реестр авторизованных токенов и подключённых клиентов;
-   - диспетчеризация команд → вызов существующих функций в `commands.rs`;
-   - широковещательная рассылка событий подключённым клиентам.
-3. **Трансляция событий**: обернуть вызовы `app.emit(...)` в opencode/state так,
-   чтобы событие уходило и в окна Tauri, и в мобильных клиентов. Проще всего —
-   завести `broadcast()` в `mobile.rs` и вызывать его из тех же мест, где сейчас
-   `emit_state` / `app.emit`.
-4. **Состояние**: поля в `AppState` — `mobile_enabled: bool`,
-   `mobile_port: u16`, `mobile_token: String`.
-5. **Команды Tauri**: `get_mobile_info` (ip/port/token для QR), `set_mobile_enabled`,
-   `regenerate_mobile_token`.
+- **`src-tauri/src/modules/mobile.rs`** — встроенный WS-сервер на axum, слушает
+  `0.0.0.0:47800`, роуты `/` (ws) и `/health`. Авторизация по токену, диспетчеризация
+  команд (вызывает функции из `commands.rs`/`opencode.rs`), broadcast-канал событий.
+- **Трансляция событий**: `emit_state` (`state-changed`) и все `opencode-*`
+  (`user/delta/tool/done/error/permission/question`) шлются и в окна Tauri, и
+  мобильным клиентам (через `emit_and_broadcast`).
+- **Состояние**: `AppState` — `mobile_enabled`, `mobile_port`, `mobile_token`
+  (токен генерируется один раз, сохраняется в `state.json`).
+- **Команды Tauri**: `get_mobile_info` (ip/port/token/uri/qrSvg),
+  `set_mobile_enabled`, `regenerate_mobile_token`.
+- **UI**: вкладка «Настройки → Мобильный доступ» — тумблер + QR-код + адрес.
 
-## Что построить на мобилке (Flutter)
+Зависимости (Cargo.toml): `axum` (ws), `tokio`, `futures-util`, `rand`,
+`qr_code`, `local-ip-address`.
+
+## Как протестировать десктоп без мобилки
+
+Сервер поднимается вместе с десктопом (`npm run tauri dev`). Проверить можно так:
+
+```bash
+# healthcheck
+curl http://127.0.0.1:47800/health          # -> ok
+
+# рукопожатие с токеном (без токена — 401, при выключенном доступе — 403)
+# токен лежит в state.json (поле mobileToken), либо в UI «Мобильный доступ»
+curl -i -H "Connection: Upgrade" -H "Upgrade: websocket" \
+  -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+  "http://127.0.0.1:47800/?token=TOKEN"
+```
+
+Для полноценного обмена по WS без установки клиента можно написать мини-клиент
+(Python `socket` + ручной фрейминг) — в сессии разработки это уже делалось и
+работало: `ping`/`list_sessions`/`select_session` отвечают, после `select_session`
+приходит событие `state-changed`.
+
+## Что построить на мобилке (Flutter) — этап 2
 
 - Проект в `mobile/` (пакет `voicebridge_mobile`).
 - Зависимости: `web_socket_channel`, `mobile_scanner` (QR), `flutter_secure_storage`
@@ -112,6 +149,17 @@
     (токены/стоимость).
 - Dart-модели повторяют типы из `src/types.ts`.
 
+### Советы для Flutter-клиента
+
+- QR-код на десктопе кодирует строку `ws://<ip>:47800/?token=<token>` — её можно
+  парсить как `Uri`, извлекая `host`, `port` и `queryParameters['token']`.
+- `web_socket_channel` подключается к `Uri` напрямую (`WebSocketChannel.connect(uri)`).
+- Один WS-канал на приложение; команды шлются с возрастающим `id`, ответы
+  сопоставляются по `id`. Входящие `type: "event"` раздаются подписчикам по `name`.
+- Поток чата: `send_prompt` → события `opencode-user`, `opencode-delta` (доклеивать
+  в последний ответ), `opencode-tool`, `opencode-done`. Стоимость/токены — команда
+  `get_state` (поле `response` — последний ответ, но полная история — `get_conversation`).
+
 ## Безопасность
 
 - Токен при каждом подключении; на десктопе — только явно включённый режим.
@@ -122,11 +170,11 @@
 
 ## Поэтапный план
 
-1. **Этап 0 — сервер и протокол (десктоп)**: WS-сервер, токен, QR, healthcheck;
-   заглушка команд, рассылка событий.
-2. **Этап 1 — мост команд**: `list_sessions`, `select_session`, `send_prompt`,
+1. ✅ **Этап 0 — сервер и протокол (десктоп)**: WS-сервер, токен, QR, healthcheck,
+   рассылка событий.
+2. ✅ **Этап 1 — мост команд**: `list_sessions`, `select_session`, `send_prompt`,
    `abort`; трансляция `opencode-*` событий на мобилку.
-3. **Этап 2 — мобилка (MVP)**: пейринг по QR, лаунчер сессий, чат со стримом.
+3. ⏳ **Этап 2 — мобилка (MVP)**: пейринг по QR, лаунчер сессий, чат со стримом.
 4. **Этап 3 — действия**: разрешения/вопросы, стоимость, retry/reconnect,
    сохранение пары «устройство».
 5. **Этап 4 — вне LAN**: Tailscale/ZeroTier (или облачный relay) для доступа

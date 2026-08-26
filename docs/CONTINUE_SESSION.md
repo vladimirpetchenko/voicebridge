@@ -12,6 +12,7 @@
 1. `docs/AGENTS.md` — структура, команды, конвенции, критичные грабли.
 2. `docs/README.md` — обзор архитектуры и фич.
 3. `docs/OPENCODE.md` — проверенный API OpenCode (типы SSE-событий!).
+4. `docs/MOBILE.md` — мобильное приложение (план, протокол, статус).
 
 **Как запускать:** `npm install`, затем `npm run tauri dev` (dev) или
 `npm run tauri build` (релиз). Проверка Rust: `cargo check` в `src-tauri/`,
@@ -73,6 +74,17 @@
   собрать `.msi`/NSIS (Windows) и публиковать артефакты + `latest.json` в
   GitHub Releases.
 
+**Мобильное приложение (текущий фокус, ветка `feature/mobile-app`):**
+- Идея: Flutter-приложение управляет десктопом по локальной сети (LAN), десктоп
+  работает как мост к OpenCode. Без облака; Tailscale/ZeroTier — позже.
+- **Уже сделано (этапы 0–1, десктоп)**: встроенный WebSocket-сервер в
+  `src-tauri/src/modules/mobile.rs` (axum, порт 47800, авторизация по токену,
+  QR в настройках «Мобильный доступ»). Команды `ping/list_sessions/get_state/
+  select_session/send_prompt/abort/get_conversation`, трансляция событий
+  `state-changed` и `opencode-*`. Протестировано вручную.
+- **Следующий шаг (этап 2)**: Flutter-клиент в `mobile/` — пейринг по QR,
+  лаунчер сессий, чат со стримом. Подробный протокол и советы — в `docs/MOBILE.md`.
+
 **Ключевые грабли (подробно в docs/AGENTS.md):**
 - `src-tauri/.cargo/config.toml` форсит `SDKROOT=""` и
   `MACOSX_DEPLOYMENT_TARGET=10.15` (иначе whisper.cpp не соберётся). Не удаляй.
@@ -84,6 +96,6 @@
 
 Начни с того, что подтверди понимание текущего состояния (прочитай docs/),
 проверь сборку, затем спроси/уточни, что именно делаем дальше (по умолчанию —
-GUI-автоматизация).
+Flutter-клиент мобильного приложения, этап 2 из `docs/MOBILE.md`).
 
 ---

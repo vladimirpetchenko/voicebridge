@@ -38,6 +38,8 @@ npm run build            # tsc + vite build
   - `src-tauri/src/modules/stt.rs` — whisper, модели, скачивание.
   - `src-tauri/src/modules/opencode.rs` — OpenCode (обнаружение, сессии,
     проекты, стриминг SSE, диалоги, permission/question).
+  - `src-tauri/src/modules/mobile.rs` — мобильный доступ: встроенный
+    WebSocket-сервер (axum), токен/QR, команды и broadcast событий.
 - Проверочные бинарники — `src-tauri/examples/*.rs` (запуск:
   `cargo run --example opencode_check`).
 
@@ -53,7 +55,9 @@ npm run build            # tsc + vite build
   `get_conversation`, `get_session_info`, `get_session_usage`,
   `abort_session`, `close_response_window`,
   `list_open_session_ids`, `reply_permission`, `reply_question`,
-  `reject_question`, `get_opencode_binary`, `check_update`, `quit_app`.
+  `reject_question`, `get_opencode_binary`, `check_update`,
+  `get_mobile_info`, `set_mobile_enabled`, `regenerate_mobile_token`,
+  `quit_app`.
 - События (`listen`): `state-changed` (AppState), `audio-level` (number),
   `model-download-progress/-done/-error`, `model-loading/-loaded/-load-error`,
   `sessions-open-changed` (Vec<String> — id сессий с открытым окном чата),
@@ -131,3 +135,7 @@ OpenCode выбранной сессии (`opencode_model` из `/session`). Г�
 
 Мобильное приложение (Flutter, управление десктопом по LAN через WebSocket) —
 спроектировано и расписано в `docs/MOBILE.md` (ветка `feature/mobile-app`).
+Десктопная часть готова: встроенный WS-сервер в `modules/mobile.rs` (axum,
+порт 47800, токен/QR, команды `ping/list_sessions/select_session/send_prompt/
+abort/get_conversation/get_state`, трансляция `state-changed` и `opencode-*`).
+Осталось — Flutter-клиент (этап 2).
