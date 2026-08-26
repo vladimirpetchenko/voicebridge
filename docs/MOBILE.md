@@ -11,8 +11,13 @@
 
 - ✅ **Этап 0–1 (десктоп) готов** — встроенный WebSocket-сервер, токен/QR,
   диспетчеризация команд и трансляция событий. Протестировано вручную.
-- ⏳ **Этап 2 (Flutter-клиент) — текущая задача.** Всё на ветке
-  `feature/mobile-app`.
+- ✅ **Этап 2 (Flutter-клиент, MVP) готов** — пейринг по QR/ручному вводу,
+  лаунчер сессий, чат со стримом, инструменты, кнопка «Стоп».
+- ✅ **Этап 3 (действия, стоимость, reconnect) готов** — обработка
+  разрешений/вопросов, строка токенов/стоимости, авто-переподключение при
+  обрыве.
+- ⏳ **Этап 4 (вне LAN) — текущая задача.** Доступ из любой сети (Tailscale/
+  ZeroTier или облачный relay) и пуши. Всё на ветке `feature/mobile-app`.
 
 ## Архитектура
 
@@ -67,6 +72,11 @@
 { "type": "command", "id": "7", "name": "abort" }
 { "type": "command", "id": "8", "name": "abort", "sessionId": "ses_…" }
 { "type": "command", "id": "9", "name": "get_conversation", "sessionId": "ses_…" }
+{ "type": "command", "id": "10", "name": "get_session_usage", "sessionId": "ses_…" }
+{ "type": "command", "id": "11", "name": "reply_permission", "port": 4149, "requestId": "…", "reply": "once" }
+{ "type": "command", "id": "12", "name": "reply_question", "port": 4149, "requestId": "…", "answers": [["вариант"]] }
+{ "type": "command", "id": "13", "name": "reject_question", "port": 4149, "requestId": "…" }
+{ "type": "command", "id": "14", "name": "register_device", "deviceId": "uuid", "deviceName": "iPhone" }
 ```
 
 - `list_sessions` → массив `OpenCodeInstance` (инстансы с `port` и `sessions`,
@@ -75,6 +85,16 @@
   берутся из данных `list_sessions`.
 - `send_prompt` — без `sessionId` шлёт в выбранную сессию; с `sessionId` — в неё.
 - `abort` — прерывает генерацию (без `sessionId` — выбранную сессию).
+- `get_session_usage` — токены/стоимость сессии (объект `SessionUsage` или
+  `null`, если данных нет).
+- `reply_permission` — ответ на запрос разрешения: `reply` ∈
+  `once` / `always` / `reject`.
+- `reply_question` — ответ на вопрос: `answers` — массив массивов выбранных
+  меток (для одного вопроса — `[["метка"]]`).
+- `reject_question` — отклонить вопрос.
+- `register_device` — зарегистрировать (или обновить) устройство на десктопе:
+  `deviceId` — стабильный id мобилки (генерируется один раз), `deviceName` —
+  имя для отображения. Десктоп сохраняет пару и шлёт событие `devices-changed`.
 
 ### Ответы на команды (десктоп → мобилка)
 
@@ -95,6 +115,7 @@
 { "type": "event", "name": "opencode-error",    "data": { "sessionId": "…", "error": "…" } }
 { "type": "event", "name": "opencode-permission","data": { "sessionId": "…", "requestId": "…", "port": 0, "permission": "…", "patterns": [] } }
 { "type": "event", "name": "opencode-question", "data": { "sessionId": "…", "requestId": "…", "port": 0, "questions": [] } }
+{ "type": "event", "name": "devices-changed", "data": [ { "id": "…", "name": "…", "lastSeen": 0 } ] }
 ```
 
 Мобилка не обязана понимать все события сразу — на первом этапе достаточно
@@ -111,8 +132,13 @@
 - **Состояние**: `AppState` — `mobile_enabled`, `mobile_port`, `mobile_token`
   (токен генерируется один раз, сохраняется в `state.json`).
 - **Команды Tauri**: `get_mobile_info` (ip/port/token/uri/qrSvg),
-  `set_mobile_enabled`, `regenerate_mobile_token`.
-- **UI**: вкладка «Настройки → Мобильный доступ» — тумблер + QR-код + адрес.
+  `set_mobile_enabled`, `regenerate_mobile_token`, `list_devices`,
+  `forget_device`.
+- **Устройства**: пара «мобилка ↔ десктоп» сохраняется в `state.json`
+  (`AppState.known_devices`: id/name/lastSeen). Мобилка шлёт `register_device`
+  при подключении; список показывается в UI, устройство можно «забыть».
+- **UI**: вкладка «Настройки → Мобильный доступ» — тумблер + QR-код + адрес +
+  список устройств.
 
 Зависимости (Cargo.toml): `axum` (ws), `tokio`, `futures-util`, `rand`,
 `qr_code`, `local-ip-address`.
@@ -137,17 +163,26 @@ curl -i -H "Connection: Upgrade" -H "Upgrade: websocket" \
 работало: `ping`/`list_sessions`/`select_session` отвечают, после `select_session`
 приходит событие `state-changed`.
 
-## Что построить на мобилке (Flutter) — этап 2
+## Реализация мобилки (Flutter) — этапы 2–3
 
-- Проект в `mobile/` (пакет `voicebridge_mobile`).
+Проект в `mobile/` (пакет `voicebridge_mobile`).
+
 - Зависимости: `web_socket_channel`, `mobile_scanner` (QR), `flutter_secure_storage`
-  (токен), `provider`/`riverpod` (состояние).
-- Экраны:
-  - **Пейринг** — скан QR, сохранение адреса/токена, подключение.
-  - **Сессии** (лаунчер) — список экземпляров/сессий, выбор сессии.
-  - **Чат** — сообщения, стрим, инструменты, кнопка «Стоп», строка состояния
-    (токены/стоимость).
-- Dart-модели повторяют типы из `src/types.ts`.
+  (токен), `provider` (состояние).
+- Структура `mobile/lib/`:
+  - `models.dart` — Dart-модели (повторяют `src/types.ts`).
+  - `ws_client.dart` — WS-клиент: команды с возрастающим `id`, ответы по `id`,
+    события подписчикам, поток `onDisconnected` (неожиданный обрыв).
+  - `settings_store.dart` — адрес/токен пары в secure storage (Keychain /
+    EncryptedSharedPreferences).
+  - `app_state.dart` — `ChangeNotifier` (provider): статус соединения, сессии,
+    выбранная сессия, стрим чата, разрешения/вопросы, стоимость, авто-
+    переподключение (экспоненциальная задержка).
+  - `screens/` — `pairing_screen.dart` (QR-скан + ручной ввод), `sessions_screen.dart`
+    (лаунчер), `chat_screen.dart` (чат: сообщения, инструменты, карточки
+    разрешений/вопросов, строка токенов/стоимости, кнопка «Стоп»).
+- Платформенные права: камера + интернет + cleartext (Android), `NSCameraUsageDescription`
+  + локальная сеть (iOS).
 
 ### Советы для Flutter-клиента
 
@@ -158,7 +193,7 @@ curl -i -H "Connection: Upgrade" -H "Upgrade: websocket" \
   сопоставляются по `id`. Входящие `type: "event"` раздаются подписчикам по `name`.
 - Поток чата: `send_prompt` → события `opencode-user`, `opencode-delta` (доклеивать
   в последний ответ), `opencode-tool`, `opencode-done`. Стоимость/токены — команда
-  `get_state` (поле `response` — последний ответ, но полная история — `get_conversation`).
+  `get_session_usage`.
 
 ## Безопасность
 
@@ -174,10 +209,9 @@ curl -i -H "Connection: Upgrade" -H "Upgrade: websocket" \
    рассылка событий.
 2. ✅ **Этап 1 — мост команд**: `list_sessions`, `select_session`, `send_prompt`,
    `abort`; трансляция `opencode-*` событий на мобилку.
-3. ⏳ **Этап 2 — мобилка (MVP)**: пейринг по QR, лаунчер сессий, чат со стримом.
-4. **Этап 3 — действия**: разрешения/вопросы, стоимость, retry/reconnect,
-   сохранение пары «устройство».
-5. **Этап 4 — вне LAN**: Tailscale/ZeroTier (или облачный relay) для доступа
+3. ✅ **Этап 2 — мобилка (MVP)**: пейринг по QR, лаунчер сессий, чат со стримом.
+4. ✅ **Этап 3 — действия**: разрешения/вопросы, стоимость, retry/reconnect.
+5. ⏳ **Этап 4 — вне LAN**: Tailscale/ZeroTier (или облачный relay) для доступа
    из любой сети, пуши.
 
 ## Заметки
@@ -186,3 +220,6 @@ curl -i -H "Connection: Upgrade" -H "Upgrade: websocket" \
   мост получается тонким (обёртка над уже готовой логикой).
 - Порт/токен держим в `AppState` и сохраняем в `state.json`, чтобы пара
   «мобилка ↔ десктоп» переживала перезапуск.
+- Сохранение пары «устройство» реализовано: мобилка регистрируется через
+  `register_device` (стабильный `deviceId` + имя), десктоп хранит список
+  известных устройств в `known_devices` и показывает его в настройках.

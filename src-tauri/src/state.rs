@@ -64,6 +64,15 @@ pub struct WindowInfo {
     pub app_name: String,
 }
 
+/// Известное мобильное устройство (пара «мобилка ↔ десктоп»).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnownDevice {
+    pub id: String,
+    pub name: String,
+    pub last_seen: u64,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppState {
@@ -100,6 +109,9 @@ pub struct AppState {
     pub active_instance: Option<OpenCodeInstanceRef>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_window: Option<WindowInfo>,
+    /// Известные (сохранённые) мобильные устройства.
+    #[serde(default)]
+    pub known_devices: Vec<KnownDevice>,
 }
 
 impl Default for AppState {
@@ -132,6 +144,7 @@ impl Default for AppState {
             opencode_model: None,
             active_instance: None,
             selected_window: None,
+            known_devices: Vec::new(),
         }
     }
 }

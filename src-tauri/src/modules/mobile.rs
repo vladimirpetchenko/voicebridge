@@ -291,6 +291,60 @@ fn run_command(
             Ok(serde_json::to_value(crate::modules::opencode::conversation_for(app, &session_id))
                 .unwrap_or(serde_json::Value::Array(vec![])))
         }
+        "get_session_usage" => {
+            let session_id = get_str(args, "sessionId");
+            Ok(serde_json::to_value(
+                crate::modules::opencode::fetch_session_usage(app, &session_id),
+            )
+            .unwrap_or(serde_json::Value::Null))
+        }
+        "reply_permission" => {
+            let port = args.get("port").and_then(|x| x.as_u64()).unwrap_or(0) as u16;
+            let request_id = get_str(args, "requestId");
+            let reply = get_str(args, "reply");
+            crate::modules::opencode::reply_permission(port, &request_id, &reply)?;
+            Ok(serde_json::json!({ "ok": true }))
+        }
+        "reply_question" => {
+            let port = args.get("port").and_then(|x| x.as_u64()).unwrap_or(0) as u16;
+            let request_id = get_str(args, "requestId");
+            let answers = args
+                .get("answers")
+                .and_then(|x| x.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .map(|a| {
+                            a.as_array()
+                                .map(|inner| {
+                                    inner
+                                        .iter()
+                                        .filter_map(|s| s.as_str().map(|x| x.to_string()))
+                                        .collect::<Vec<String>>()
+                                })
+                                .unwrap_or_default()
+                        })
+                        .collect::<Vec<Vec<String>>>()
+                })
+                .unwrap_or_default();
+            crate::modules::opencode::reply_question(port, &request_id, answers)?;
+            Ok(serde_json::json!({ "ok": true }))
+        }
+        "reject_question" => {
+            let port = args.get("port").and_then(|x| x.as_u64()).unwrap_or(0) as u16;
+            let request_id = get_str(args, "requestId");
+            crate::modules::opencode::reject_question(port, &request_id)?;
+            Ok(serde_json::json!({ "ok": true }))
+        }
+        "register_device" => {
+            let device_id = get_str(args, "deviceId");
+            let device_name = get_str(args, "deviceName");
+            if device_id.is_empty() {
+                return Err("deviceId обязателен".into());
+            }
+            let devices =
+                crate::commands::register_device(app.clone(), device_id, device_name);
+            Ok(serde_json::to_value(devices).unwrap_or(serde_json::Value::Array(vec![])))
+        }
         _ => Err(format!("неизвестная команда: {name}")),
     }
 }

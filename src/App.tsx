@@ -42,6 +42,7 @@ import type {
   SessionInfo,
   SessionUsage,
   MobileInfo,
+  KnownDevice,
 } from "./types";
 
 const DEFAULT_STATE: AppState = {
@@ -145,6 +146,7 @@ function MainApp() {
   const [updateChecking, setUpdateChecking] = useState(false);
   const [hotkeyDraft, setHotkeyDraft] = useState(DEFAULT_STATE.hotkey);
   const [mobileInfo, setMobileInfo] = useState<MobileInfo | null>(null);
+  const [devices, setDevices] = useState<KnownDevice[]>([]);
 
   useEffect(() => {
     invoke<AppState>("get_app_state")
@@ -177,6 +179,10 @@ function MainApp() {
 
     invoke<MobileInfo>("get_mobile_info")
       .then(setMobileInfo)
+      .catch(() => {});
+
+    invoke<KnownDevice[]>("list_devices")
+      .then(setDevices)
       .catch(() => {});
 
     const unlistenState = listen<AppState>("state-changed", (event) => {
@@ -221,6 +227,9 @@ function MainApp() {
     const unlistenOpen = listen<string[]>("sessions-open-changed", (event) => {
       setOpenSessionIds(event.payload);
     });
+    const unlistenDevices = listen<KnownDevice[]>("devices-changed", (event) => {
+      setDevices(event.payload);
+    });
 
     return () => {
       unlistenState.then((f) => f());
@@ -232,6 +241,7 @@ function MainApp() {
       unlistenLoadErr.then((f) => f());
       unlistenOcErr.then((f) => f());
       unlistenOpen.then((f) => f());
+      unlistenDevices.then((f) => f());
     };
   }, []);
 
@@ -412,6 +422,12 @@ function MainApp() {
       .then(() => refreshMobileInfo())
       .catch((e) => setError(String(e)));
   }, [refreshMobileInfo]);
+
+  const forgetDevice = useCallback((deviceId: string) => {
+    invoke<KnownDevice[]>("forget_device", { deviceId })
+      .then(setDevices)
+      .catch((e) => setError(String(e)));
+  }, []);
 
   const refreshBinary = useCallback(() => {
     invoke<string>("get_opencode_binary")
@@ -927,6 +943,32 @@ function MainApp() {
                     <button className="btn" onClick={regenerateToken}>
                       Перевыпустить токен
                     </button>
+
+                    <div className="field">
+                      <span className="field-label">Устройства</span>
+                      {devices.length === 0 ? (
+                        <span className="hint-banner">Пока нет подключённых устройств.</span>
+                      ) : (
+                        <div className="device-list">
+                          {devices.map((d) => (
+                            <div className="device-row" key={d.id}>
+                              <div className="device-meta">
+                                <span className="device-name">{d.name}</span>
+                                <span className="device-seen">
+                                  подключено {new Date(d.lastSeen * 1000).toLocaleString()}
+                                </span>
+                              </div>
+                              <button
+                                className="btn"
+                                onClick={() => forgetDevice(d.id)}
+                              >
+                                Забыть
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </>
                 )}
 

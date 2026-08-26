@@ -594,6 +594,69 @@ pub fn regenerate_mobile_token(app: AppHandle) -> AppState {
     current_state(&app)
 }
 
+fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+fn broadcast_devices(app: &AppHandle, devices: &[crate::state::KnownDevice]) {
+    let _ = app.emit("devices-changed", devices);
+    crate::modules::mobile::broadcast(
+        app,
+        "devices-changed",
+        serde_json::to_value(devices).unwrap_or(serde_json::Value::Array(vec![])),
+    );
+}
+
+/// Регистрирует (или обновляет) мобильное устройство. Вызывается из мобильного
+/// моста (WS) при подключении.
+pub fn register_device(app: AppHandle, device_id: String, device_name: String) -> Vec<crate::state::KnownDevice> {
+    let state = app.state::<SharedState>();
+    let mut s = state.0.lock().unwrap();
+    let name = if device_name.trim().is_empty() {
+        "Мобильное устройство".to_string()
+    } else {
+        device_name.trim().to_string()
+    };
+    let now = now_secs();
+    if let Some(d) = s.known_devices.iter_mut().find(|d| d.id == device_id) {
+        d.name = name;
+        d.last_seen = now;
+    } else {
+        s.known_devices.push(crate::state::KnownDevice {
+            id: device_id,
+            name,
+            last_seen: now,
+        });
+    }
+    let snapshot = s.clone();
+    drop(s);
+    save_state(&app, &snapshot);
+    broadcast_devices(&app, &snapshot.known_devices);
+    snapshot.known_devices
+}
+
+/// Список известных (сохранённых) мобильных устройств.
+#[tauri::command]
+pub fn list_devices(app: AppHandle) -> Vec<crate::state::KnownDevice> {
+    current_state(&app).known_devices
+}
+
+/// Удаляет устройство из списка известных.
+#[tauri::command]
+pub fn forget_device(app: AppHandle, device_id: String) -> Vec<crate::state::KnownDevice> {
+    let state = app.state::<SharedState>();
+    let mut s = state.0.lock().unwrap();
+    s.known_devices.retain(|d| d.id != device_id);
+    let snapshot = s.clone();
+    drop(s);
+    save_state(&app, &snapshot);
+    broadcast_devices(&app, &snapshot.known_devices);
+    snapshot.known_devices
+}
+
 /// Проверяет наличие обновления. Возвращает версию, если доступна новая.
 #[tauri::command]
 pub async fn check_update(app: AppHandle) -> Result<Option<String>, String> {

@@ -101,6 +101,12 @@ export interface MobileInfo {
   qrSvg: string;
 }
 
+export interface KnownDevice {
+  id: string;
+  name: string;
+  lastSeen: number;
+}
+
 export interface WindowInfo {
   id: string;
   title: string;
