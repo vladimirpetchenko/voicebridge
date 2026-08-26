@@ -475,6 +475,54 @@ pub async fn list_projects() -> Vec<crate::modules::opencode::Project> {
 }
 
 #[tauri::command]
+pub async fn create_session(
+    app: AppHandle,
+    port: u16,
+    worktree: String,
+    title: String,
+) -> Result<AppState, String> {
+    let session =
+        tauri::async_runtime::spawn_blocking(move || crate::modules::opencode::create_session(port, &title))
+            .await
+            .map_err(|e| e.to_string())??;
+
+    let instance_id = worktree.clone();
+    let project = std::path::Path::new(&worktree)
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let state = app.state::<SharedState>();
+    let mut s = state.0.lock().unwrap();
+    s.selected_session = Some(crate::state::OpenCodeTarget {
+        instance_id: instance_id.clone(),
+        port,
+        session_id: session.id.clone(),
+        title: session.title.clone(),
+    });
+    s.opencode_model = if session.model.is_empty() {
+        None
+    } else {
+        Some(session.model.clone())
+    };
+    s.active_instance = Some(crate::state::OpenCodeInstanceRef {
+        id: instance_id,
+        port,
+        name: project.clone(),
+    });
+    crate::modules::opencode::remember_session_port(&app, &session.id, port);
+    crate::modules::opencode::remember_session_title(&app, &session.id, &session.title);
+    crate::modules::opencode::remember_session_project(&app, &session.id, &project);
+    s.response.clear();
+    s.status = AppStatus::Idle;
+    s.status_message = "Готов к работе".into();
+    let snapshot = s.clone();
+    drop(s);
+    emit_state(&app, &snapshot);
+    save_state(&app, &snapshot);
+    Ok(snapshot)
+}
+
+#[tauri::command]
 pub async fn start_project(worktree: String) -> Result<Vec<crate::modules::opencode::Project>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         crate::modules::opencode::start_project(&worktree)?;

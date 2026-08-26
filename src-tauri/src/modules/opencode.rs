@@ -72,6 +72,23 @@ impl From<SessionInfo> for OpenCodeSession {
     }
 }
 
+/// Создаёт новую сессию в экземпляре OpenCode (по порту) и возвращает её.
+pub fn create_session(port: u16, title: &str) -> Result<OpenCodeSession, String> {
+    let client = http_client(Duration::from_secs(10));
+    let resp = client
+        .post(format!("{}/session", base_url(port)))
+        .json(&serde_json::json!({ "title": title }))
+        .send()
+        .map_err(|e| format!("не удалось создать сессию: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("не удалось создать сессию: HTTP {}", resp.status()));
+    }
+    let session: SessionInfo = resp
+        .json()
+        .map_err(|e| format!("не удалось создать сессию: {e}"))?;
+    Ok(OpenCodeSession::from(session))
+}
+
 fn extract_port(name: &str) -> Option<u16> {
     name.rsplit(':')
         .next()?

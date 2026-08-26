@@ -128,6 +128,7 @@ pub fn run() {
             commands::select_opencode_session,
             commands::select_opencode_instance,
             commands::list_projects,
+            commands::create_session,
             commands::start_project,
             commands::stop_project,
             commands::get_models,

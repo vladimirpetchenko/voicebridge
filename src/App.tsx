@@ -8,6 +8,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Copy,
   FileText,
   Globe,
@@ -22,6 +23,7 @@ import {
   Square,
   Terminal,
   Wrench,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import Markdown from "./Markdown";
@@ -136,6 +138,7 @@ function MainApp() {
   const [hotkeyDraft, setHotkeyDraft] = useState(DEFAULT_STATE.hotkey);
   const [mobileInfo, setMobileInfo] = useState<MobileInfo | null>(null);
   const [devices, setDevices] = useState<KnownDevice[]>([]);
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     invoke<AppState>("get_app_state")
@@ -299,33 +302,6 @@ function MainApp() {
     }).catch((e) => setError(String(e)));
   }, []);
 
-  const selectInstance = useCallback((inst: OpenCodeInstance) => {
-    const latest = inst.sessions.reduce<OpenCodeSession | null>(
-      (a, b) => (a && a.updatedAt >= b.updatedAt ? a : b),
-      null,
-    );
-    if (latest) {
-      invoke("select_opencode_session", {
-        instanceId: inst.id,
-        port: inst.port,
-        sessionId: latest.id,
-        title: latest.title,
-        model: latest.model,
-      }).catch((e) => setError(String(e)));
-      invoke("open_response_window", {
-        sessionId: latest.id,
-        title: latest.title,
-        port: inst.port,
-      }).catch((e) => setError(String(e)));
-    } else {
-      invoke("select_opencode_instance", {
-        id: inst.id,
-        port: inst.port,
-        name: inst.name,
-      }).catch((e) => setError(String(e)));
-    }
-  }, []);
-
   const refreshInstances = useCallback(() => {
     invoke<OpenCodeInstance[]>("list_opencode_sessions")
       .then(setInstances)
@@ -336,6 +312,35 @@ function MainApp() {
     invoke<Project[]>("list_projects")
       .then(setProjects)
       .catch((e) => setError(String(e)));
+  }, []);
+
+  const createSession = useCallback((port: number, worktree: string) => {
+    invoke<AppState>("create_session", { port, worktree, title: "" })
+      .then((st) => {
+        const sel = st.selectedSession;
+        if (sel) {
+          invoke("open_response_window", {
+            sessionId: sel.sessionId,
+            title: sel.title,
+            port,
+          }).catch(() => {});
+        }
+        refreshInstances();
+        refreshProjects();
+      })
+      .catch((e) => setError(String(e)));
+  }, [refreshInstances, refreshProjects]);
+
+  const toggleProjectSessions = useCallback((id: string) => {
+    setExpandedProjects((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   }, []);
 
   const startProject = useCallback((worktree: string) => {
@@ -439,6 +444,14 @@ function MainApp() {
       .catch((e) => setError(String(e)));
   }, []);
 
+  const refreshSettings = useCallback(() => {
+    invoke<SttModelInfo[]>("get_models").then(setModels).catch(() => {});
+    invoke<string[]>("list_microphones").then(setMicrophones).catch(() => {});
+    invoke<MobileInfo>("get_mobile_info").then(setMobileInfo).catch(() => {});
+    invoke<string>("get_opencode_binary").then(setOpencodeBinary).catch(() => {});
+    setNotice("Данные обновлены");
+  }, []);
+
   const anyDownloaded = models.some((m) => m.downloaded);
 
   const selectedModelInfo = models.find((m) => m.id === state.selectedModel);
@@ -461,6 +474,23 @@ function MainApp() {
       modelStatusCls = "ok";
     }
   }
+
+  // Сессии по порту и инстансы по порту — для показа сессий под проектом.
+  const sessionsByPort = useMemo(() => {
+    const map = new Map<number, OpenCodeSession[]>();
+    for (const inst of instances) map.set(inst.port, inst.sessions);
+    return map;
+  }, [instances]);
+
+  const instanceByPort = useMemo(() => {
+    const map = new Map<number, OpenCodeInstance>();
+    for (const inst of instances) map.set(inst.port, inst);
+    return map;
+  }, [instances]);
+
+  // Инстансы, не привязанные к проектам (ручной запуск сервера).
+  const projectPorts = useMemo(() => new Set(projects.map((p) => p.port)), [projects]);
+  const orphanInstances = instances.filter((i) => !projectPorts.has(i.port));
 
   return (
     <main className="app">
@@ -496,105 +526,124 @@ function MainApp() {
           <div className="panel-header">
             <span>Проекты</span>
             <div className="panel-header-actions">
-              <button className="link-btn" onClick={newInstance} title="Новый инстанс (выбрать папку)">
+              <button className="link-btn" onClick={newInstance} title="Новый проект (выбрать папку)">
                 <Plus size={13} /> Новый
               </button>
-              <button className="link-btn" onClick={refreshProjects} title="Обновить проекты">
+              <button
+                className="link-btn"
+                onClick={() => {
+                  refreshProjects();
+                  refreshInstances();
+                }}
+                title="Обновить"
+              >
                 <RefreshCw size={13} />
               </button>
             </div>
           </div>
           <div className="projects-list">
-            {projects.length === 0 && (
+            {projects.length === 0 && orphanInstances.length === 0 && (
               <div className="sessions-empty">
                 Проекты не найдены. Откройте opencode в папке проекта.
               </div>
             )}
-            {projects.map((p) => (
-              <div key={p.id} className={`project-row ${p.running ? "running" : ""}`}>
-                <span className={`session-dot ${p.running ? "on" : ""}`} />
-                <span className="project-name" title={p.worktree}>
-                  {p.name}
-                </span>
-                <span className="project-time">{relTime(p.updated)}</span>
-                {p.running ? (
-                  <button
-                    className="btn small stop"
-                    onClick={() => stopProject(p.worktree)}
-                    title="Остановить сервер"
-                  >
-                    <Square size={12} fill="currentColor" />
-                  </button>
-                ) : (
-                  <button
-                    className="btn small play"
-                    onClick={() => startProject(p.worktree)}
-                    title="Запустить сервер OpenCode"
-                  >
-                    <Play size={12} fill="currentColor" />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-
-      <section className="sessions-panel">
-          <div className="panel-header">
-            <span>Сессии OpenCode</span>
-            <button className="link-btn" onClick={refreshInstances} title="Обновить сессии">
-              <RefreshCw size={13} /> Обновить
-            </button>
-          </div>
-          <div className="sessions-list">
-            {instances.length === 0 && (
-              <div className="sessions-empty">
-                Запустите проект в панели «Проекты» — его сессии появятся здесь.
-              </div>
-            )}
-            {instances.map((inst) => {
-              const isActiveInstance = state.activeInstance?.port === inst.port;
+            {projects.map((p) => {
+              const sessions = sessionsByPort.get(p.port) ?? [];
+              const inst = instanceByPort.get(p.port);
+              const expanded = expandedProjects.has(p.id);
+              const visible = expanded ? sessions : sessions.slice(0, 3);
+              const hidden = sessions.length - visible.length;
               return (
-                <div
-                  className={`instance-card ${isActiveInstance ? "active" : ""}`}
-                  key={inst.id}
-                >
-                  <button
-                    className="instance-header"
-                    onClick={() => selectInstance(inst)}
-                    title="Выбрать этот экземпляр OpenCode"
-                  >
-                    <span className="instance-name">{inst.name}</span>
-                    <span className="instance-port">:{inst.port}</span>
-                    {isActiveInstance && (
-                      <span className="instance-active-badge">активный</span>
+                <div key={p.id} className={`project-card ${p.running ? "running" : ""}`}>
+                  <div className="project-row">
+                    <span className={`session-dot ${p.running ? "on" : ""}`} />
+                    <div className="project-meta">
+                      <span className="project-name" title={p.worktree}>{p.name}</span>
+                      <span className="project-time">{relTime(p.updated)}</span>
+                    </div>
+                    {p.running && (
+                      <button className="btn small new-session" onClick={() => createSession(p.port, p.worktree)}>
+                        <Plus size={13} /> Новая сессия
+                      </button>
                     )}
-                  </button>
-                  {inst.sessions.length === 0 && (
+                    {p.running ? (
+                      <button className="btn small stop" onClick={() => stopProject(p.worktree)} title="Остановить сервер">
+                        <Square size={12} fill="currentColor" />
+                      </button>
+                    ) : (
+                      <button className="btn small play" onClick={() => startProject(p.worktree)} title="Запустить сервер OpenCode">
+                        <Play size={12} fill="currentColor" />
+                      </button>
+                    )}
+                  </div>
+                  {p.running && sessions.length === 0 && (
                     <div className="session-row empty">Нет сессий</div>
                   )}
-                  {inst.sessions.map((session) => {
-                    const active =
-                      state.selectedSession?.sessionId === session.id &&
-                      state.selectedSession?.instanceId === inst.id;
+                  {visible.map((session) => {
+                    const active = state.selectedSession?.sessionId === session.id;
                     const isOpen = openSessionIds.includes(session.id);
                     return (
                       <button
                         key={session.id}
                         className={`session-row ${active ? "active" : ""}`}
-                        onClick={() => selectSession(inst, session)}
+                        onClick={() => inst && selectSession(inst, session)}
                       >
                         <span className={`session-dot ${active ? "on" : ""}`} />
                         <span className="session-title" title={session.title}>
                           {session.title || "Без названия"}
                         </span>
-                        {isOpen && (
-                          <span className="session-open-badge">открыта</span>
-                        )}
+                        {isOpen && <span className="session-open-badge">открыта</span>}
                         <span className="session-time">{relTime(session.updatedAt)}</span>
                       </button>
                     );
                   })}
+                  {hidden > 0 && (
+                    <button
+                      className="session-toggle"
+                      onClick={() => toggleProjectSessions(p.id)}
+                    >
+                      {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                      {expanded ? "Свернуть" : `Ещё ${hidden}`}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+            {orphanInstances.map((inst) => {
+              const expanded = expandedProjects.has(inst.id);
+              const visible = expanded ? inst.sessions : inst.sessions.slice(0, 3);
+              const hidden = inst.sessions.length - visible.length;
+              return (
+                <div key={inst.id} className="project-card running">
+                  <div className="project-row">
+                    <span className="session-dot on" />
+                    <div className="project-meta">
+                      <span className="project-name" title={inst.name}>{inst.name}</span>
+                      <span className="project-time">:{inst.port}</span>
+                    </div>
+                    <button className="btn small new-session" onClick={() => createSession(inst.port, inst.id)}>
+                      <Plus size={13} /> Новая сессия
+                    </button>
+                  </div>
+                  {inst.sessions.length === 0 && <div className="session-row empty">Нет сессий</div>}
+                  {visible.map((session) => {
+                    const active = state.selectedSession?.sessionId === session.id;
+                    const isOpen = openSessionIds.includes(session.id);
+                    return (
+                      <button key={session.id} className={`session-row ${active ? "active" : ""}`} onClick={() => selectSession(inst, session)}>
+                        <span className={`session-dot ${active ? "on" : ""}`} />
+                        <span className="session-title" title={session.title}>{session.title || "Без названия"}</span>
+                        {isOpen && <span className="session-open-badge">открыта</span>}
+                        <span className="session-time">{relTime(session.updatedAt)}</span>
+                      </button>
+                    );
+                  })}
+                  {hidden > 0 && (
+                    <button className="session-toggle" onClick={() => toggleProjectSessions(inst.id)}>
+                      {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                      {expanded ? "Свернуть" : `Ещё ${hidden}`}
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -640,7 +689,21 @@ function MainApp() {
       {showSettings && (
         <div className="settings-overlay" onClick={() => setShowSettings(false)}>
           <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
-            <h2>Настройки</h2>
+            <div className="settings-header">
+              <h2>Настройки</h2>
+              <div className="settings-header-actions">
+                <button className="icon-btn" onClick={refreshSettings} title="Обновить">
+                  <RefreshCw size={15} />
+                </button>
+                <button
+                  className="icon-btn"
+                  onClick={() => setShowSettings(false)}
+                  title="Закрыть"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
             <div className="settings-tabs">
               {SETTINGS_TABS.map((tab) => (
                 <button
