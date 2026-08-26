@@ -53,6 +53,7 @@ const DEFAULT_STATE: AppState = {
   pasteMethod: "clipboard",
   pasteDelayMs: 500,
   sendMode: "direct",
+  hotkey: "Cmd+Shift+V",
   language: "auto",
   selectedModel: null,
   transcript: "",
@@ -95,6 +96,11 @@ function formatCost(c: number): string {
   return `$${c.toFixed(c < 0.01 ? 4 : 2)}`;
 }
 
+function prettifyModel(id: string): string {
+  if (!id) return "";
+  return id.charAt(0).toUpperCase() + id.slice(1);
+}
+
 function relTime(ms: number): string {
   if (!ms) return "";
   const diff = Date.now() - ms;
@@ -132,6 +138,7 @@ function MainApp() {
   const [opencodeBinary, setOpencodeBinary] = useState("");
   const [updateStatus, setUpdateStatus] = useState<string | null>(null);
   const [updateChecking, setUpdateChecking] = useState(false);
+  const [hotkeyDraft, setHotkeyDraft] = useState(DEFAULT_STATE.hotkey);
 
   useEffect(() => {
     invoke<AppState>("get_app_state")
@@ -223,6 +230,11 @@ function MainApp() {
     const t = setTimeout(() => setNotice(null), 3000);
     return () => clearTimeout(t);
   }, [notice]);
+
+  // Синхронизируем черновик горячей клавиши с актуальным значением.
+  useEffect(() => {
+    setHotkeyDraft(state.hotkey);
+  }, [state.hotkey]);
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -368,6 +380,12 @@ function MainApp() {
   const setSendMode = useCallback((mode: string) => {
     invoke("set_send_mode", { mode }).catch((e) => setError(String(e)));
   }, []);
+
+  const saveHotkey = useCallback(() => {
+    invoke("set_hotkey", { hotkey: hotkeyDraft })
+      .then(() => setNotice("Горячая клавиша обновлена"))
+      .catch((e) => setError(String(e)));
+  }, [hotkeyDraft]);
 
   const refreshBinary = useCallback(() => {
     invoke<string>("get_opencode_binary")
@@ -585,7 +603,7 @@ function MainApp() {
 
       <footer className="app-footer">
         <span className="shortcut-hint" title="Глобальная горячая клавиша записи">
-          ⌘⇧V
+          {state.hotkey}
         </span>
         <button
           className="mic-hint"
@@ -613,7 +631,9 @@ function MainApp() {
         >
           {state.mode === "opencode"
             ? state.selectedSession
-              ? state.opencodeModel ?? state.selectedSession.title
+              ? state.opencodeModel
+                ? prettifyModel(state.opencodeModel)
+                : state.selectedSession.title
               : state.activeInstance
                 ? state.activeInstance.name
                 : "чат не выбран"
@@ -830,12 +850,24 @@ function MainApp() {
 
             {settingsTab === "Горячие клавиши" && (
               <div className="settings-content">
-                <div className="field">
+                <label className="field">
                   <span className="field-label">Запись (глобально)</span>
-                  <span className="shortcut-hint">⌘⇧V / Ctrl+Shift+V</span>
-                </div>
+                  <div className="field-row">
+                    <input
+                      className="select"
+                      value={hotkeyDraft}
+                      onChange={(e) => setHotkeyDraft(e.target.value)}
+                      placeholder="Cmd+Shift+V"
+                      spellCheck={false}
+                    />
+                    <button className="btn small" onClick={saveHotkey}>
+                      Сохранить
+                    </button>
+                  </div>
+                </label>
                 <div className="hint-banner">
-                  Настройка произвольных комбинаций появится позже.
+                  Примеры: Cmd+Shift+V (macOS), Ctrl+Shift+V (Windows/Linux),
+                  Alt+Space. После сохранения комбинация применяется сразу.
                 </div>
               </div>
             )}

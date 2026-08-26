@@ -308,6 +308,23 @@ pub fn set_send_mode(app: AppHandle, mode: String) -> AppState {
     current_state(&app)
 }
 
+#[tauri::command]
+pub fn set_hotkey(app: AppHandle, hotkey: String) -> Result<AppState, String> {
+    let hotkey = hotkey.trim().to_string();
+    if hotkey.is_empty() {
+        return Err("комбинация не может быть пустой".into());
+    }
+    crate::hotkeys::apply_hotkey(&app, &hotkey)?;
+    let state = app.state::<SharedState>();
+    let mut s = state.0.lock().unwrap();
+    s.hotkey = hotkey;
+    let snapshot = s.clone();
+    drop(s);
+    emit_state(&app, &snapshot);
+    save_state(&app, &snapshot);
+    Ok(current_state(&app))
+}
+
 /// Отправка набранного вручную текста в сессию окна чата (не зависит от режима).
 #[tauri::command]
 pub fn send_text(app: AppHandle, window: tauri::WebviewWindow, text: String) {

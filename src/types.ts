@@ -125,6 +125,7 @@ export interface AppState {
   pasteMethod: string;
   pasteDelayMs: number;
   sendMode: string;
+  hotkey: string;
   language: string;
   selectedModel: string | null;
   transcript: string;

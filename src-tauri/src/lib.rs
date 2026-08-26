@@ -49,6 +49,7 @@ pub fn run() {
                 s.paste_method = loaded.paste_method;
                 s.paste_delay_ms = loaded.paste_delay_ms;
                 s.send_mode = loaded.send_mode;
+                s.hotkey = loaded.hotkey;
                 s.language = loaded.language;
                 s.selected_model = loaded.selected_model;
                 s.selected_microphone = loaded.selected_microphone;
@@ -103,6 +104,7 @@ pub fn run() {
             commands::set_paste_method,
             commands::set_paste_delay,
             commands::set_send_mode,
+            commands::set_hotkey,
             commands::send_text,
             commands::get_session_info,
             commands::get_opencode_binary,

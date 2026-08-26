@@ -76,6 +76,7 @@ pub struct AppState {
     pub paste_method: String,
     pub paste_delay_ms: u32,
     pub send_mode: String,
+    pub hotkey: String,
     pub language: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_model: Option<String>,
@@ -110,6 +111,11 @@ impl Default for AppState {
             paste_method: "clipboard".into(),
             paste_delay_ms: 500,
             send_mode: "direct".into(),
+            hotkey: if cfg!(target_os = "macos") {
+                "Cmd+Shift+V".into()
+            } else {
+                "Ctrl+Shift+V".into()
+            },
             language: "auto".into(),
             selected_model: None,
             transcript: String::new(),

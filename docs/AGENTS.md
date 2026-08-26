@@ -46,7 +46,7 @@ npm run build            # tsc + vite build
 - Команды (`invoke`): `get_app_state`, `set_mode`, `toggle_recording`,
   `start_recording`, `stop_recording`, `list_microphones`, `select_microphone`,
   `set_sensitivity`, `set_silence_timeout`, `set_paste_method`,
-  `set_paste_delay`, `set_send_mode`, `send_text`, `list_opencode_sessions`,
+  `set_paste_delay`, `set_send_mode`, `set_hotkey`, `send_text`, `list_opencode_sessions`,
   `select_opencode_session`, `select_opencode_instance`, `list_projects`,
   `start_project`, `stop_project`, `get_models`, `download_model`,
   `select_stt_model`, `set_language`, `open_response_window`,
@@ -113,8 +113,10 @@ permission/question). Главное окно — лаунчер, окно ча�
 `.cmd`/`.bat`), подсветка синтаксиса в markdown (`rehype-highlight` + тёмная
 тема hljs), иконки `lucide-react` вместо emoji, звуки записи/отправки/ответа и
 анимация «думает» в чате. Внизу окна чата — строка состояния (токены сессии,
-стоимость) из `GET /session/{id}`. Подключён
-`tauri-plugin-updater` (базовый конфиг в
+стоимость) из `GET /session/{id}`. В футере лаунчера показывается модель
+OpenCode выбранной сессии (`opencode_model` из `/session`). Горячая клавиша
+записи настраивается («Настройки → Горячие клавиши», команда `set_hotkey`).
+Подключён `tauri-plugin-updater` (базовый конфиг в
 `tauri.conf.json`: endpoint — GitHub Releases `latest.json`, публичный ключ
 вшит; команда `check_update` + кнопка в «О программе»). Ключ подписи лежит в
 `src-tauri/voicebridge-signing.key` (gitignored); в CI передаётся через
