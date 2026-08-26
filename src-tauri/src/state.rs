@@ -78,6 +78,9 @@ pub struct AppState {
     pub send_mode: String,
     pub hotkey: String,
     pub language: String,
+    pub mobile_enabled: bool,
+    pub mobile_port: u16,
+    pub mobile_token: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub selected_model: Option<String>,
     pub transcript: String,
@@ -117,6 +120,9 @@ impl Default for AppState {
                 "Ctrl+Shift+V".into()
             },
             language: "auto".into(),
+            mobile_enabled: false,
+            mobile_port: 47800,
+            mobile_token: String::new(),
             selected_model: None,
             transcript: String::new(),
             response: String::new(),

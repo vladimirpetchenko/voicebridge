@@ -7,6 +7,11 @@ fn current_state(app: &AppHandle) -> AppState {
 
 pub fn emit_state(app: &AppHandle, state: &AppState) {
     let _ = app.emit("state-changed", state.clone());
+    crate::modules::mobile::broadcast(
+        app,
+        "state-changed",
+        serde_json::to_value(state).unwrap_or(serde_json::Value::Null),
+    );
     if let Some(tray) = app.tray_by_id("main-tray") {
         let text = match state.status {
             AppStatus::Idle => "VoiceBridge — ожидание",
@@ -558,6 +563,35 @@ pub fn set_language(app: AppHandle, language: String) -> AppState {
 #[tauri::command]
 pub fn quit_app(app: AppHandle) {
     app.exit(0);
+}
+
+#[tauri::command]
+pub fn get_mobile_info(app: AppHandle) -> crate::modules::mobile::MobileInfo {
+    crate::modules::mobile::mobile_info(&app)
+}
+
+#[tauri::command]
+pub fn set_mobile_enabled(app: AppHandle, enabled: bool) -> AppState {
+    let state = app.state::<SharedState>();
+    let mut s = state.0.lock().unwrap();
+    s.mobile_enabled = enabled;
+    let snapshot = s.clone();
+    drop(s);
+    emit_state(&app, &snapshot);
+    save_state(&app, &snapshot);
+    current_state(&app)
+}
+
+#[tauri::command]
+pub fn regenerate_mobile_token(app: AppHandle) -> AppState {
+    let state = app.state::<SharedState>();
+    let mut s = state.0.lock().unwrap();
+    s.mobile_token = crate::modules::mobile::generate_token();
+    let snapshot = s.clone();
+    drop(s);
+    emit_state(&app, &snapshot);
+    save_state(&app, &snapshot);
+    current_state(&app)
 }
 
 /// Проверяет наличие обновления. Возвращает версию, если доступна новая.

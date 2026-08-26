@@ -317,7 +317,8 @@ fn read_sse(
                     if let Some(delta) = prop_str(&ev.properties, "delta") {
                         text.push_str(&delta);
                         append_assistant_delta(app, session_id, &delta);
-                        let _ = app.emit(
+                        crate::modules::mobile::emit_and_broadcast(
+                            app,
                             "opencode-delta",
                             serde_json::json!({ "sessionId": session_id, "text": delta }),
                         );
@@ -347,7 +348,8 @@ fn read_sse(
                             "error" | "cancelled" => "failed",
                             _ => "running",
                         };
-                        let _ = app.emit(
+                        crate::modules::mobile::emit_and_broadcast(
+                            app,
                             "opencode-tool",
                             serde_json::json!({ "sessionId": session_id, "callId": call_id, "name": tool, "state": state }),
                         );
@@ -375,7 +377,8 @@ fn read_sse(
                     "permission.asked: id={request_id} permission={permission} patterns={:?}",
                     patterns
                 );
-                let _ = app.emit(
+                crate::modules::mobile::emit_and_broadcast(
+                    app,
                     "opencode-permission",
                     serde_json::json!({
                         "sessionId": session_id,
@@ -390,7 +393,8 @@ fn read_sse(
                 let request_id = prop_str(&ev.properties, "id").unwrap_or_default();
                 let questions = ev.properties.get("questions").cloned().unwrap_or_default();
                 log::info!("question.asked: id={request_id}");
-                let _ = app.emit(
+                crate::modules::mobile::emit_and_broadcast(
+                    app,
                     "opencode-question",
                     serde_json::json!({
                         "sessionId": session_id,
@@ -431,7 +435,8 @@ fn set_status(app: &AppHandle, status: AppStatus, message: &str) {
 fn fail(app: &AppHandle, session_id: &str, message: String) {
     log::error!("opencode error (session={session_id}): {message}");
     set_status(app, AppStatus::Error, &message);
-    let _ = app.emit(
+    crate::modules::mobile::emit_and_broadcast(
+        app,
         "opencode-error",
         serde_json::json!({ "sessionId": session_id, "error": message }),
     );
@@ -439,7 +444,8 @@ fn fail(app: &AppHandle, session_id: &str, message: String) {
 
 /// Завершает приём ответа: фиксирует итог и статус (только если сессия активна).
 fn finish_response(app: &AppHandle, session_id: &str, text: String) {
-    let _ = app.emit(
+    crate::modules::mobile::emit_and_broadcast(
+        app,
         "opencode-done",
         serde_json::json!({ "sessionId": session_id }),
     );
@@ -481,7 +487,8 @@ fn record_user_message(app: &AppHandle, session_id: &str, text: &str) {
     });
     drop(conv);
 
-    let _ = app.emit(
+    crate::modules::mobile::emit_and_broadcast(
+        app,
         "opencode-user",
         serde_json::json!({ "sessionId": session_id, "text": text }),
     );

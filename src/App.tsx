@@ -41,6 +41,7 @@ import type {
   QuestionRequest,
   SessionInfo,
   SessionUsage,
+  MobileInfo,
 } from "./types";
 
 const DEFAULT_STATE: AppState = {
@@ -54,6 +55,9 @@ const DEFAULT_STATE: AppState = {
   pasteDelayMs: 500,
   sendMode: "direct",
   hotkey: "Cmd+Shift+V",
+  mobileEnabled: false,
+  mobilePort: 47800,
+  mobileToken: "",
   language: "auto",
   selectedModel: null,
   transcript: "",
@@ -77,6 +81,7 @@ const SETTINGS_TABS = [
   "OpenCode",
   "Вставка",
   "Горячие клавиши",
+  "Мобильный доступ",
   "О программе",
 ] as const;
 
@@ -139,6 +144,7 @@ function MainApp() {
   const [updateStatus, setUpdateStatus] = useState<string | null>(null);
   const [updateChecking, setUpdateChecking] = useState(false);
   const [hotkeyDraft, setHotkeyDraft] = useState(DEFAULT_STATE.hotkey);
+  const [mobileInfo, setMobileInfo] = useState<MobileInfo | null>(null);
 
   useEffect(() => {
     invoke<AppState>("get_app_state")
@@ -167,6 +173,10 @@ function MainApp() {
 
     invoke<string>("get_opencode_binary")
       .then(setOpencodeBinary)
+      .catch(() => {});
+
+    invoke<MobileInfo>("get_mobile_info")
+      .then(setMobileInfo)
       .catch(() => {});
 
     const unlistenState = listen<AppState>("state-changed", (event) => {
@@ -386,6 +396,22 @@ function MainApp() {
       .then(() => setNotice("Горячая клавиша обновлена"))
       .catch((e) => setError(String(e)));
   }, [hotkeyDraft]);
+
+  const refreshMobileInfo = useCallback(() => {
+    invoke<MobileInfo>("get_mobile_info").then(setMobileInfo).catch(() => {});
+  }, []);
+
+  const setMobileEnabled = useCallback((enabled: boolean) => {
+    invoke("set_mobile_enabled", { enabled })
+      .then(() => refreshMobileInfo())
+      .catch((e) => setError(String(e)));
+  }, [refreshMobileInfo]);
+
+  const regenerateToken = useCallback(() => {
+    invoke("regenerate_mobile_token")
+      .then(() => refreshMobileInfo())
+      .catch((e) => setError(String(e)));
+  }, [refreshMobileInfo]);
 
   const refreshBinary = useCallback(() => {
     invoke<string>("get_opencode_binary")
@@ -868,6 +894,45 @@ function MainApp() {
                 <div className="hint-banner">
                   Примеры: Cmd+Shift+V (macOS), Ctrl+Shift+V (Windows/Linux),
                   Alt+Space. После сохранения комбинация применяется сразу.
+                </div>
+              </div>
+            )}
+
+            {settingsTab === "Мобильный доступ" && (
+              <div className="settings-content">
+                <label className="field">
+                  <span className="field-label">Принимать команды с мобильного</span>
+                  <input
+                    type="checkbox"
+                    checked={state.mobileEnabled}
+                    onChange={(e) => setMobileEnabled(e.target.checked)}
+                  />
+                </label>
+
+                {state.mobileEnabled && mobileInfo && (
+                  <>
+                    <div className="field">
+                      <span className="field-label">QR-код для подключения</span>
+                      <div
+                        className="mobile-qr"
+                        dangerouslySetInnerHTML={{ __html: mobileInfo.qrSvg }}
+                      />
+                    </div>
+                    <div className="field">
+                      <span className="field-label">Адрес</span>
+                      <span className="hint-banner" style={{ wordBreak: "break-all" }}>
+                        {mobileInfo.uri}
+                      </span>
+                    </div>
+                    <button className="btn" onClick={regenerateToken}>
+                      Перевыпустить токен
+                    </button>
+                  </>
+                )}
+
+                <div className="hint-banner">
+                  Мобильное приложение подключается по локальной сети и управляет
+                  десктопом. Для доступа из другой сети используйте Tailscale/ZeroTier.
                 </div>
               </div>
             )}

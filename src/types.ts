@@ -92,6 +92,15 @@ export interface SessionUsage {
   model: string;
 }
 
+export interface MobileInfo {
+  enabled: boolean;
+  port: number;
+  ip: string;
+  token: string;
+  uri: string;
+  qrSvg: string;
+}
+
 export interface WindowInfo {
   id: string;
   title: string;
@@ -126,6 +135,9 @@ export interface AppState {
   pasteDelayMs: number;
   sendMode: string;
   hotkey: string;
+  mobileEnabled: boolean;
+  mobilePort: number;
+  mobileToken: string;
   language: string;
   selectedModel: string | null;
   transcript: string;

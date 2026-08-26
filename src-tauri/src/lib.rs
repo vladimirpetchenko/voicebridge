@@ -37,6 +37,7 @@ pub fn run() {
             handle.manage(state::ConversationStore::default());
             handle.manage(modules::audio::AudioEngine::default());
             handle.manage(modules::stt::spawn(handle.clone()));
+            handle.manage(modules::mobile::MobileServer::default());
 
             // Восстанавливаем сохранённое состояние после перезапуска.
             // Рантайм-поля (статус, запись, текст) сбрасываются.
@@ -56,10 +57,28 @@ pub fn run() {
                 s.selected_session = loaded.selected_session;
                 s.opencode_model = loaded.opencode_model;
                 s.selected_window = loaded.selected_window;
+                s.mobile_enabled = loaded.mobile_enabled;
+                s.mobile_port = loaded.mobile_port;
+                s.mobile_token = loaded.mobile_token;
+            }
+
+            // Токен мобильного доступа генерируется один раз и сохраняется.
+            {
+                let st = handle.state::<state::SharedState>();
+                let mut s = st.0.lock().unwrap();
+                if s.mobile_token.is_empty() {
+                    s.mobile_token = modules::mobile::generate_token();
+                }
+                let snapshot = s.clone();
+                drop(s);
+                commands::save_state(&handle, &snapshot);
             }
 
             tray::setup(&handle)?;
             hotkeys::setup(&handle)?;
+
+            // Встроенный WebSocket-сервер мобильного доступа.
+            tauri::async_runtime::spawn(modules::mobile::serve(handle.clone()));
 
             let snapshot = handle
                 .state::<state::SharedState>()
@@ -130,6 +149,9 @@ pub fn run() {
             commands::close_response_window,
             commands::list_open_session_ids,
             commands::check_update,
+            commands::get_mobile_info,
+            commands::set_mobile_enabled,
+            commands::regenerate_mobile_token,
             commands::quit_app
         ])
         .run(tauri::generate_context!())
