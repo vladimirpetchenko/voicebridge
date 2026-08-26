@@ -5,6 +5,7 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
+  Bot,
   Check,
   ChevronDown,
   ChevronRight,
@@ -23,6 +24,7 @@ import {
   Settings,
   Square,
   Terminal,
+  User,
   Wrench,
   X,
   type LucideIcon,
@@ -1262,8 +1264,14 @@ function ResponseView() {
     <main className="response-view">
       <header className="response-view-header">
         <div className="chat-title">
-          <h1>{info.title || "OpenCode"}</h1>
-          {info.project && <span className="chat-project">{info.project}</span>}
+          <span className="chat-logo"><Bot size={16} /></span>
+          <div className="chat-title-text">
+            <div className="chat-title-row">
+              <h1>{info.title || "OpenCode"}</h1>
+              {busy && <span className="chat-busy-dot" title="OpenCode отвечает" />}
+            </div>
+            {info.project && <span className="chat-project">{info.project}</span>}
+          </div>
         </div>
         <div className="header-actions">
           {busy && (
@@ -1271,8 +1279,8 @@ function ResponseView() {
               <Square size={14} fill="currentColor" /> Стоп
             </button>
           )}
-          <button className="btn" onClick={close}>
-            Закрыть
+          <button className="icon-btn" onClick={close} title="Закрыть">
+            <X size={16} />
           </button>
         </div>
       </header>
@@ -1346,14 +1354,37 @@ function ResponseView() {
         ) : (
           messages.map((m, i) =>
             m.role === "user" ? (
-              <div key={i} className="chat-user">
-                <span className="chat-role">Вы</span>
-                <div className="chat-user-text">{m.text}</div>
+              <div key={i} className="chat-msg user">
+                <div className="chat-avatar user">
+                  <User size={14} />
+                </div>
+                <div className="chat-msg-body">
+                  <div className="chat-bubble user-bubble">{m.text}</div>
+                </div>
               </div>
             ) : (
-              <div key={i} className="chat-assistant">
-                <div className="chat-role-row">
-                  <span className="chat-role">OpenCode</span>
+              <div key={i} className="chat-msg assistant">
+                <div className="chat-avatar assistant">
+                  <Bot size={14} />
+                </div>
+                <div className="chat-msg-body">
+                  <div className="chat-bubble assistant-bubble">
+                    {m.reasoning ? (
+                      <ReasoningBlock
+                        text={m.reasoning}
+                        streaming={busy && !m.text}
+                      />
+                    ) : null}
+                    {m.text ? (
+                      <Markdown>{m.text}</Markdown>
+                    ) : !m.reasoning ? (
+                      <span className="thinking-dots" aria-label="OpenCode думает">
+                        <span />
+                        <span />
+                        <span />
+                      </span>
+                    ) : null}
+                  </div>
                   {m.text && (
                     <button
                       className="msg-copy-btn"
@@ -1364,21 +1395,6 @@ function ResponseView() {
                     </button>
                   )}
                 </div>
-                {m.reasoning ? (
-                  <ReasoningBlock
-                    text={m.reasoning}
-                    streaming={busy && !m.text}
-                  />
-                ) : null}
-                {m.text ? (
-                  <Markdown>{m.text}</Markdown>
-                ) : !m.reasoning ? (
-                  <span className="thinking-dots" aria-label="OpenCode думает">
-                    <span />
-                    <span />
-                    <span />
-                  </span>
-                ) : null}
               </div>
             ),
           )
