@@ -333,7 +333,7 @@ pub fn send_text(app: AppHandle, window: tauri::WebviewWindow, text: String) {
 }
 
 #[tauri::command]
-pub fn get_session_info(
+pub async fn get_session_info(
     window: tauri::WebviewWindow,
     app: AppHandle,
 ) -> crate::state::SessionInfo {
@@ -350,34 +350,34 @@ pub fn get_session_info(
         .get(&session_id)
         .cloned()
         .unwrap_or_default();
-    let port = store
-        .ports
+    let project = store
+        .projects
         .lock()
         .unwrap()
         .get(&session_id)
-        .copied()
-        .unwrap_or(0);
-    let project = if port > 0 {
-        crate::modules::opencode::project_name(port)
-    } else {
-        String::new()
-    };
+        .cloned()
+        .unwrap_or_default();
     crate::state::SessionInfo { title, project }
 }
 
 #[tauri::command]
-pub fn get_session_usage(
+pub async fn get_session_usage(
     window: tauri::WebviewWindow,
     app: AppHandle,
 ) -> Option<crate::state::SessionUsage> {
     let session_id = window
         .label()
         .strip_prefix("response-")
-        .unwrap_or_default();
+        .unwrap_or_default()
+        .to_string();
     if session_id.is_empty() {
         return None;
     }
-    crate::modules::opencode::fetch_session_usage(&app, session_id)
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::modules::opencode::fetch_session_usage(&app, &session_id)
+    })
+    .await
+    .unwrap_or(None)
 }
 
 #[tauri::command]
@@ -425,8 +425,12 @@ pub fn reject_question(port: u16, request_id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn list_opencode_sessions() -> Vec<crate::state::OpenCodeInstance> {
-    crate::modules::opencode::discover_instances()
+pub async fn list_opencode_sessions() -> Vec<crate::state::OpenCodeInstance> {
+    // Обнаружение экземпляров опрашивает порты и запускает подпроцессы —
+    // выполняем в фоновом потоке, чтобы не блокировать UI.
+    tauri::async_runtime::spawn_blocking(crate::modules::opencode::discover_instances)
+        .await
+        .unwrap_or_default()
 }
 
 #[tauri::command]
@@ -438,6 +442,12 @@ pub fn select_opencode_session(
     title: String,
     model: String,
 ) -> AppState {
+    // instance_id — это папка проекта (см. discover_instances); имя проекта —
+    // её basename.
+    let project = std::path::Path::new(&instance_id)
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
     let state = app.state::<SharedState>();
     let mut s = state.0.lock().unwrap();
     s.selected_session = Some(crate::state::OpenCodeTarget {
@@ -458,6 +468,7 @@ pub fn select_opencode_session(
     });
     crate::modules::opencode::remember_session_port(&app, &session_id, port);
     crate::modules::opencode::remember_session_title(&app, &session_id, &title);
+    crate::modules::opencode::remember_session_project(&app, &session_id, &project);
     // Показываем последний ответ этой сессии и сбрасываем статус.
     s.response = crate::modules::opencode::latest_assistant_response(&app, &session_id);
     s.status = AppStatus::Idle;
@@ -493,20 +504,31 @@ pub fn select_opencode_instance(app: AppHandle, id: String, port: u16, name: Str
 }
 
 #[tauri::command]
-pub fn list_projects() -> Vec<crate::modules::opencode::Project> {
-    crate::modules::opencode::list_projects()
+pub async fn list_projects() -> Vec<crate::modules::opencode::Project> {
+    // Чтение БД opencode и проверка портов тяжёлые — не блокируем UI.
+    tauri::async_runtime::spawn_blocking(crate::modules::opencode::list_projects)
+        .await
+        .unwrap_or_default()
 }
 
 #[tauri::command]
-pub fn start_project(worktree: String) -> Result<Vec<crate::modules::opencode::Project>, String> {
-    crate::modules::opencode::start_project(&worktree)?;
-    Ok(crate::modules::opencode::list_projects())
+pub async fn start_project(worktree: String) -> Result<Vec<crate::modules::opencode::Project>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::modules::opencode::start_project(&worktree)?;
+        Ok(crate::modules::opencode::list_projects())
+    })
+    .await
+    .unwrap_or_else(|e| Err(e.to_string()))
 }
 
 #[tauri::command]
-pub fn stop_project(worktree: String) -> Result<Vec<crate::modules::opencode::Project>, String> {
-    crate::modules::opencode::stop_project(&worktree)?;
-    Ok(crate::modules::opencode::list_projects())
+pub async fn stop_project(worktree: String) -> Result<Vec<crate::modules::opencode::Project>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::modules::opencode::stop_project(&worktree)?;
+        Ok(crate::modules::opencode::list_projects())
+    })
+    .await
+    .unwrap_or_else(|e| Err(e.to_string()))
 }
 
 #[tauri::command]
@@ -575,7 +597,7 @@ pub async fn check_update(app: AppHandle) -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
-pub fn open_response_window(app: AppHandle, session_id: String, title: String, port: u16) {
+pub async fn open_response_window(app: AppHandle, session_id: String, title: String, port: u16) {
     crate::modules::opencode::remember_session_port(&app, &session_id, port);
     crate::modules::opencode::remember_session_title(&app, &session_id, &title);
 
@@ -586,15 +608,25 @@ pub fn open_response_window(app: AppHandle, session_id: String, title: String, p
         let _ = window.set_focus();
     } else {
         use tauri::{WebviewUrl, WebviewWindowBuilder};
-        let _ = WebviewWindowBuilder::new(
+        // Создание окна должно быть асинхронным: `build()` на Windows шлёт
+        // создание webview в главный поток и ждёт ответа. В синхронной команде
+        // это приводит к deadlock (главный поток ждёт сам себя).
+        let builder = WebviewWindowBuilder::new(
             &app,
             &label,
             WebviewUrl::App(std::path::PathBuf::from("index.html")),
         )
         .title(format!("OpenCode · {title}"))
         .inner_size(960.0, 820.0)
-        .min_inner_size(480.0, 400.0)
-        .build();
+        .min_inner_size(480.0, 400.0);
+        match builder.build() {
+            Ok(_window) => {
+                log::info!("opened response window {label}");
+            }
+            Err(e) => {
+                log::error!("failed to open response window {label}: {e}");
+            }
+        }
     }
 
     crate::modules::opencode::mark_session_open(&app, &session_id);
@@ -606,7 +638,7 @@ pub fn list_open_session_ids(app: AppHandle) -> Vec<String> {
 }
 
 #[tauri::command]
-pub fn get_conversation(
+pub async fn get_conversation(
     window: tauri::WebviewWindow,
     app: AppHandle,
 ) -> Vec<crate::state::ConversationMessage> {
@@ -616,21 +648,27 @@ pub fn get_conversation(
         .unwrap_or_default()
         .to_string();
 
-    let port = {
-        let store = app.state::<crate::state::ConversationStore>();
-        let ports = store.ports.lock().unwrap();
-        ports.get(&session_id).copied()
-    };
+    // Подтягивание истории делает HTTP-запрос — не блокируем главный поток.
+    tauri::async_runtime::spawn_blocking(move || {
+        let port = {
+            let store = app.state::<crate::state::ConversationStore>();
+            let ports = store.ports.lock().unwrap();
+            ports.get(&session_id).copied()
+        };
 
-    if let Some(port) = port {
-        if let Ok(history) = crate::modules::opencode::fetch_session_history(port, &session_id) {
-            if !history.is_empty() {
-                return history;
+        if let Some(port) = port {
+            if let Ok(history) = crate::modules::opencode::fetch_session_history(port, &session_id)
+            {
+                if !history.is_empty() {
+                    return history;
+                }
             }
         }
-    }
 
-    crate::modules::opencode::conversation_for(&app, &session_id)
+        crate::modules::opencode::conversation_for(&app, &session_id)
+    })
+    .await
+    .unwrap_or_default()
 }
 
 #[tauri::command]
