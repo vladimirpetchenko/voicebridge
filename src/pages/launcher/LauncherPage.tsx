@@ -144,6 +144,10 @@ export default function LauncherPage() {
     const unlistenDevices = listen<KnownDevice[]>("devices-changed", (event) => {
       setDevices(event.payload);
     });
+    const unlistenOpenSettings = listen<string>("open-settings", (event) => {
+      setSettingsTab(event.payload);
+      setShowSettings(true);
+    });
 
     return () => {
       unlistenState.then((f) => f());
@@ -156,6 +160,7 @@ export default function LauncherPage() {
       unlistenOcErr.then((f) => f());
       unlistenOpen.then((f) => f());
       unlistenDevices.then((f) => f());
+      unlistenOpenSettings.then((f) => f());
     };
   }, []);
 

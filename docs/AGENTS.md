@@ -73,7 +73,7 @@ npm run build            # tsc + vite build
   `opencode-tool {sessionId,callId,name,state}`, `opencode-error {sessionId,error}`,
   `opencode-done {sessionId}`, `opencode-permission {sessionId,requestId,port,permission,patterns}`,
   `opencode-question {sessionId,requestId,port,questions}`,
-  `git-changes {sessionId,changes}`.
+  `git-changes {sessionId,changes}`, `open-settings` (string — имя вкладки настроек).
 
 Tauri сам мапит camelCase (JS) ↔ snake_case (Rust) в аргументах команд.
 
@@ -111,7 +111,9 @@ Tauri сам мапит camelCase (JS) ↔ snake_case (Rust) в аргумент
 
 ## Текущее состояние / TODO
 
-Реализовано: трей, хоткей, STT (whisper + модели), OpenCode (обнаружение,
+Реализовано: трей (клик по иконке показывает/фокусирует окно, если оно скрыто
+или не в фокусе; в меню — «Показать/Скрыть», подменю «Настройки» с вкладками и
+«Выход»), хоткей, STT (whisper + модели), OpenCode (обнаружение,
 сессии, проекты, новый инстанс с выбором папки, стриминг, история, действия
 permission/question). Главное окно — лаунчер, окно чата — основной интерфейс:
 шапка (название сессии + проект), диалог с markdown, панель ввода (текст +
