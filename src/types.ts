@@ -107,6 +107,20 @@ export interface KnownDevice {
   lastSeen: number;
 }
 
+export interface GitFileChange {
+  path: string;
+  status: "modified" | "added" | "deleted" | "untracked" | "renamed";
+  additions: number;
+  deletions: number;
+}
+
+export interface GitDiff {
+  path: string;
+  status: string;
+  tooLarge: boolean;
+  diff: string;
+}
+
 export interface SttModelInfo {
   id: string;
   name: string;

@@ -5,6 +5,7 @@ import '../app_state.dart';
 import '../models.dart';
 import '../theme.dart';
 import '../widgets/markdown_text.dart';
+import 'git_screen.dart';
 
 /// Экран чата с выбранной сессией: markdown, стрим, инструменты, действия.
 class ChatScreen extends StatefulWidget {
@@ -53,6 +54,15 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'Изменения',
+            icon: const Icon(Icons.account_tree_outlined),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const GitScreen()),
+              );
+            },
+          ),
           if (controller.busy)
             IconButton(
               tooltip: 'Остановить',

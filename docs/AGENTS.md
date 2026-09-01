@@ -58,7 +58,7 @@ npm run build            # tsc + vite build
   `list_open_session_ids`, `reply_permission`, `reply_question`,
   `reject_question`, `get_opencode_binary`, `check_update`,
   `get_mobile_info`, `set_mobile_enabled`, `regenerate_mobile_token`,
-  `quit_app`.
+  `get_git_changes`, `get_git_diff`, `quit_app`.
 - События (`listen`): `state-changed` (AppState), `audio-level` (number),
   `model-download-progress/-done/-error`, `model-loading/-loaded/-load-error`,
   `sessions-open-changed` (Vec<String> — id сессий с открытым окном чата),
@@ -66,7 +66,8 @@ npm run build            # tsc + vite build
   `opencode-reasoning-delta {sessionId,text}`,
   `opencode-tool {sessionId,callId,name,state}`, `opencode-error {sessionId,error}`,
   `opencode-done {sessionId}`, `opencode-permission {sessionId,requestId,port,permission,patterns}`,
-  `opencode-question {sessionId,requestId,port,questions}`.
+  `opencode-question {sessionId,requestId,port,questions}`,
+  `git-changes {sessionId,changes}`.
 
 Tauri сам мапит camelCase (JS) ↔ snake_case (Rust) в аргументах команд.
 
@@ -153,10 +154,19 @@ CI (`.github/workflows/build.yml`): сборка десктопа (`.exe`/`.dmg`
 APK (Flutter, job `android` на `ubuntu-latest`, debug-подпись) по тегу `v*` или
 вручную.
 
-## Планы (отложено на самый конец)
+## Планы
 
-GUI-автоматизация — вставка распознанного текста в выбранное окно. Объёмная
-задача, отложена на самый конец: системные API для списка окон (macOS
-`CGWindowListCopyWindowInfo`, Windows `EnumWindows`), вставка текста (симуляция
-нажатий клавиш / буфер обмена + Ctrl/Cmd+V / Accessibility API). В текущей
-сборке не реализована (модуль `automation.rs` и режим «GUI» удалены).
+1. **Git-панель изменений** (десктоп + мобилка) — текущая задача. Трансляция
+   файлов, которые система (OpenCode) меняет в проекте: список изменённых
+   файлов (`git status`) с количеством добавленных/удалённых строк и диффом
+   (до/после) по клику. На десктопе окно чата responsive: при достаточной
+   ширине справа показывается встроенная панель, при узком окне — кнопка с
+   выезжающей боковой панелью (overlay). На мобилке — отдельный экран
+   (навигация). Ветка `feature/git-changes`. Модуль `src-tauri/src/modules/git.rs`;
+   команды `get_git_changes`/`get_git_diff` (десктоп) и WS-команды
+   `get_git_changes`/`get_git_diff` (мобилка), событие `git-changes`.
+2. **GUI-автоматизация** — вставка распознанного текста в выбранное окно.
+   Объёмная задача, отложена на самый конец: системные API для списка окон
+   (macOS `CGWindowListCopyWindowInfo`, Windows `EnumWindows`), вставка текста
+   (симуляция нажатий клавиш / буфер обмена + Ctrl/Cmd+V / Accessibility API).
+   В текущей сборке не реализована (модуль `automation.rs` и режим «GUI» удалены).
