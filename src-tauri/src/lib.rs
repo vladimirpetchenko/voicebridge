@@ -151,6 +151,8 @@ pub fn run() {
             commands::forget_device,
             commands::hide_project,
             commands::unhide_project,
+            commands::get_git_changes,
+            commands::get_git_diff,
             commands::quit_app
         ])
         .run(tauri::generate_context!())

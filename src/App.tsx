@@ -5,13 +5,19 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
+  ArrowLeft,
   Bot,
   Check,
   ChevronDown,
   ChevronRight,
   ChevronUp,
   Copy,
+  FileMinus,
+  FilePlus,
   FileText,
+  FileX,
+  FolderGit,
+  GitBranch,
   Globe,
   Mic,
   MicVocal,
@@ -47,6 +53,8 @@ import type {
   SessionUsage,
   MobileInfo,
   KnownDevice,
+  GitFileChange,
+  GitDiff,
 } from "./types";
 
 const DEFAULT_STATE: AppState = {
@@ -1073,6 +1081,193 @@ function ReasoningBlock({ text, streaming }: { text: string; streaming: boolean 
   );
 }
 
+function basename(p: string): string {
+  const parts = p.split(/[\\/]/);
+  return parts[parts.length - 1] || p;
+}
+
+function dirname(p: string): string {
+  const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
+  return i >= 0 ? p.slice(0, i) : "";
+}
+
+function gitStatusMeta(status: string): { label: string; Icon: LucideIcon; cls: string } {
+  switch (status) {
+    case "added":
+      return { label: "добавлен", Icon: FilePlus, cls: "added" };
+    case "deleted":
+      return { label: "удалён", Icon: FileX, cls: "deleted" };
+    case "untracked":
+      return { label: "новый", Icon: FilePlus, cls: "untracked" };
+    case "renamed":
+      return { label: "переименован", Icon: FolderGit, cls: "renamed" };
+    default:
+      return { label: "изменён", Icon: FileMinus, cls: "modified" };
+  }
+}
+
+interface DiffRow {
+  old: string;
+  neu: string;
+  cls: "add" | "del" | "hunk" | "meta" | "ctx";
+  text: string;
+}
+
+function parseDiff(diff: string): DiffRow[] {
+  const rows: DiffRow[] = [];
+  let oldLine = 0;
+  let newLine = 0;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("@@")) {
+      const m = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+      if (m) {
+        oldLine = parseInt(m[1], 10);
+        newLine = parseInt(m[2], 10);
+      }
+      rows.push({ old: "", neu: "", cls: "hunk", text: line });
+    } else if (
+      line.startsWith("diff") ||
+      line.startsWith("index") ||
+      line.startsWith("new file") ||
+      line.startsWith("deleted file") ||
+      line.startsWith("similarity") ||
+      line.startsWith("rename") ||
+      line.startsWith("---") ||
+      line.startsWith("+++") ||
+      line.startsWith("\\ No newline")
+    ) {
+      rows.push({ old: "", neu: "", cls: "meta", text: line });
+    } else if (line.startsWith("+")) {
+      rows.push({ old: "", neu: String(newLine++), cls: "add", text: line });
+    } else if (line.startsWith("-")) {
+      rows.push({ old: String(oldLine++), neu: "", cls: "del", text: line });
+    } else {
+      rows.push({ old: String(oldLine++), neu: String(newLine++), cls: "ctx", text: line });
+    }
+  }
+  return rows;
+}
+
+function GitDiffView({ diff }: { diff: GitDiff }) {
+  const rows = useMemo(() => parseDiff(diff.diff), [diff.diff]);
+  if (!diff.diff) {
+    return (
+      <div className="git-empty">
+        <GitBranch size={20} />
+        <span>Дифф недоступен (возможно, бинарный файл)</span>
+      </div>
+    );
+  }
+  return (
+    <div className="git-diff">
+      {diff.tooLarge && <div className="git-diff-too-large">Файл большой — показана часть.</div>}
+      {rows.map((r, i) => (
+        <div key={i} className={`git-diff-line ${r.cls}`}>
+          <span className="git-diff-num old">{r.old}</span>
+          <span className="git-diff-num new">{r.neu}</span>
+          <span className="git-diff-text">{r.text || " "}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function GitPanel({
+  changes,
+  selected,
+  loadingDiff,
+  onSelect,
+  onBack,
+}: {
+  changes: GitFileChange[];
+  selected: GitDiff | null;
+  loadingDiff: boolean;
+  onSelect: (path: string) => void;
+  onBack: () => void;
+}) {
+  const totalAdd = changes.reduce((s, c) => s + c.additions, 0);
+  const totalDel = changes.reduce((s, c) => s + c.deletions, 0);
+
+  return (
+    <div className="git-panel-inner">
+      <div className="git-panel-header">
+        {selected ? (
+          <button className="icon-btn git-back" onClick={onBack} title="К списку файлов">
+            <ArrowLeft size={14} />
+          </button>
+        ) : (
+          <GitBranch size={15} className="git-panel-logo" />
+        )}
+        <div className="git-panel-title">
+          {selected ? (
+            <span className="git-file-name" title={selected.path}>
+              {basename(selected.path)}
+            </span>
+          ) : (
+            <>
+              <span>Изменения</span>
+              {changes.length > 0 && (
+                <span className="git-summary">
+                  <span className="git-adds">+{totalAdd}</span>
+                  <span className="git-dels">−{totalDel}</span>
+                </span>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {selected ? (
+        loadingDiff ? (
+          <div className="git-loading">Загрузка диффа…</div>
+        ) : (
+          <GitDiffView diff={selected} />
+        )
+      ) : changes.length === 0 ? (
+        <div className="git-empty">
+          <GitBranch size={22} />
+          <span>Нет изменений</span>
+        </div>
+      ) : (
+        <div className="git-file-list">
+          {changes.map((c) => {
+            const meta = gitStatusMeta(c.status);
+            const Icon = meta.Icon;
+            return (
+              <button
+                key={c.path}
+                className="git-file-row"
+                onClick={() => onSelect(c.path)}
+                title={c.path}
+              >
+                <Icon size={14} className={`git-file-icon ${meta.cls}`} />
+                <span className="git-file-path">
+                  <span className="git-file-name">{basename(c.path)}</span>
+                  <span className="git-file-dir">{dirname(c.path)}</span>
+                </span>
+                <span className="git-file-stats">
+                  {c.additions > 0 && <span className="git-adds">+{c.additions}</span>}
+                  {c.deletions > 0 && <span className="git-dels">−{c.deletions}</span>}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function useIsWide(minWidth: number): boolean {
+  const [wide, setWide] = useState(() => window.innerWidth >= minWidth);
+  useEffect(() => {
+    const onResize = () => setWide(window.innerWidth >= minWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [minWidth]);
+  return wide;
+}
+
 function ResponseView() {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [tools, setTools] = useState<ToolAction[]>([]);
@@ -1083,6 +1278,11 @@ function ResponseView() {
   const [usage, setUsage] = useState<SessionUsage | null>(null);
   const [busy, setBusy] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const [gitChanges, setGitChanges] = useState<GitFileChange[]>([]);
+  const [gitDiff, setGitDiff] = useState<GitDiff | null>(null);
+  const [gitLoadingDiff, setGitLoadingDiff] = useState(false);
+  const [gitPanelOpen, setGitPanelOpen] = useState(false);
+  const wide = useIsWide(760);
 
   const sessionId = useMemo(() => {
     try {
@@ -1097,6 +1297,41 @@ function ResponseView() {
       .then(setUsage)
       .catch(() => {});
   }, []);
+
+  const refreshGitChanges = useCallback(() => {
+    invoke<GitFileChange[]>("get_git_changes")
+      .then(setGitChanges)
+      .catch(() => {});
+  }, []);
+
+  const selectGitFile = useCallback((path: string) => {
+    setGitLoadingDiff(true);
+    setGitDiff(null);
+    invoke<GitDiff>("get_git_diff", { path })
+      .then(setGitDiff)
+      .catch(() => {})
+      .finally(() => setGitLoadingDiff(false));
+  }, []);
+
+  const backToGitList = useCallback(() => {
+    setGitDiff(null);
+  }, []);
+
+  useEffect(() => {
+    refreshGitChanges();
+    const unlistenGit = listen<{ sessionId: string; changes: GitFileChange[] }>(
+      "git-changes",
+      (e) => {
+        if (e.payload.sessionId !== sessionId) return;
+        setGitChanges(e.payload.changes ?? []);
+      },
+    );
+    const t = setInterval(refreshGitChanges, 4000);
+    return () => {
+      clearInterval(t);
+      unlistenGit.then((f) => f());
+    };
+  }, [sessionId, refreshGitChanges]);
 
   useEffect(() => {
     invoke<ConversationMessage[]>("get_conversation")
@@ -1279,12 +1514,24 @@ function ResponseView() {
               <Square size={14} fill="currentColor" /> Стоп
             </button>
           )}
+          {!wide && (
+            <button
+              className="icon-btn git-toggle"
+              onClick={() => setGitPanelOpen((o) => !o)}
+              title="Изменения в проекте"
+            >
+              <GitBranch size={16} />
+              {gitChanges.length > 0 && <span className="git-badge">{gitChanges.length}</span>}
+            </button>
+          )}
           <button className="icon-btn" onClick={close} title="Закрыть">
             <X size={16} />
           </button>
         </div>
       </header>
-      <div className="response-view-body" ref={bodyRef}>
+      <div className="response-view-main">
+        <div className="response-view-chat">
+          <div className="response-view-body" ref={bodyRef}>
         {permissions.map((p) => (
           <div key={p.requestId} className="action-card">
             <div className="action-card-title">OpenCode запрашивает разрешение</div>
@@ -1417,6 +1664,32 @@ function ResponseView() {
           </>
         )}
       </footer>
+        </div>
+        {wide && (
+          <aside className="git-panel">
+            <GitPanel
+              changes={gitChanges}
+              selected={gitDiff}
+              loadingDiff={gitLoadingDiff}
+              onSelect={selectGitFile}
+              onBack={backToGitList}
+            />
+          </aside>
+        )}
+      </div>
+      {!wide && gitPanelOpen && (
+        <div className="git-overlay" onClick={() => setGitPanelOpen(false)}>
+          <aside className="git-drawer" onClick={(e) => e.stopPropagation()}>
+            <GitPanel
+              changes={gitChanges}
+              selected={gitDiff}
+              loadingDiff={gitLoadingDiff}
+              onSelect={selectGitFile}
+              onBack={backToGitList}
+            />
+          </aside>
+        </div>
+      )}
     </main>
   );
 }

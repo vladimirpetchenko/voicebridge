@@ -410,6 +410,33 @@ fn run_command(
                 crate::commands::register_device(app.clone(), device_id, device_name);
             Ok(serde_json::to_value(devices).unwrap_or(serde_json::Value::Array(vec![])))
         }
+        "get_git_changes" => {
+            let session_id = args
+                .get("sessionId")
+                .and_then(|x| x.as_str())
+                .map(|s| s.to_string());
+            let changes = crate::modules::opencode::session_directory(app, session_id.as_deref())
+                .map(|dir| crate::modules::git::changes(&dir))
+                .unwrap_or_default();
+            Ok(serde_json::to_value(changes).unwrap_or(serde_json::Value::Array(vec![])))
+        }
+        "get_git_diff" => {
+            let path = get_str(args, "path");
+            let session_id = args
+                .get("sessionId")
+                .and_then(|x| x.as_str())
+                .map(|s| s.to_string());
+            let diff = match crate::modules::opencode::session_directory(app, session_id.as_deref()) {
+                Some(dir) => crate::modules::git::diff(&dir, &path),
+                None => crate::modules::git::GitDiff {
+                    path,
+                    status: "modified".into(),
+                    too_large: false,
+                    diff: String::new(),
+                },
+            };
+            Ok(serde_json::to_value(diff).unwrap_or(serde_json::Value::Null))
+        }
         _ => Err(format!("неизвестная команда: {name}")),
     }
 }

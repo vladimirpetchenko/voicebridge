@@ -279,3 +279,49 @@ class ToolAction {
     return ToolAction(callId: callId, name: name, state: state ?? this.state);
   }
 }
+
+class GitFileChange {
+  final String path;
+  final String status;
+  final int additions;
+  final int deletions;
+
+  const GitFileChange({
+    required this.path,
+    required this.status,
+    required this.additions,
+    required this.deletions,
+  });
+
+  factory GitFileChange.fromJson(Map<String, dynamic> json) {
+    return GitFileChange(
+      path: json['path'] as String? ?? '',
+      status: json['status'] as String? ?? 'modified',
+      additions: (json['additions'] as num?)?.toInt() ?? 0,
+      deletions: (json['deletions'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+class GitDiff {
+  final String path;
+  final String status;
+  final bool tooLarge;
+  final String diff;
+
+  const GitDiff({
+    required this.path,
+    required this.status,
+    required this.tooLarge,
+    required this.diff,
+  });
+
+  factory GitDiff.fromJson(Map<String, dynamic> json) {
+    return GitDiff(
+      path: json['path'] as String? ?? '',
+      status: json['status'] as String? ?? 'modified',
+      tooLarge: json['tooLarge'] as bool? ?? false,
+      diff: json['diff'] as String? ?? '',
+    );
+  }
+}

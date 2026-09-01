@@ -33,6 +33,8 @@ class AppController extends ChangeNotifier {
 
   SessionUsage? usage;
 
+  final List<GitFileChange> gitChanges = [];
+
   StreamSubscription<WsEvent>? _sub;
   StreamSubscription<void>? _discSub;
 
@@ -196,6 +198,14 @@ class AppController extends ChangeNotifier {
         // обновляем список сессий.
         refreshSessions();
         break;
+      case 'git-changes':
+        if (event.data['sessionId'] != sessionId) return;
+        gitChanges
+          ..clear()
+          ..addAll(((event.data['changes'] as List<dynamic>?) ?? [])
+              .map((e) => GitFileChange.fromJson(e as Map<String, dynamic>)));
+        notifyListeners();
+        break;
     }
   }
 
@@ -301,6 +311,7 @@ class AppController extends ChangeNotifier {
         tools.clear();
         pendingPermissions.clear();
         pendingQuestions.clear();
+        gitChanges.clear();
         busy = false;
         usage = null;
         notifyListeners();
@@ -346,6 +357,7 @@ class AppController extends ChangeNotifier {
     tools.clear();
     pendingPermissions.clear();
     pendingQuestions.clear();
+    gitChanges.clear();
     busy = false;
     usage = null;
     notifyListeners();
@@ -360,6 +372,7 @@ class AppController extends ChangeNotifier {
 
     await loadConversation();
     await refreshUsage();
+    await refreshGitChanges();
   }
 
   Future<void> loadConversation() async {
@@ -386,6 +399,34 @@ class AppController extends ChangeNotifier {
       usage = data == null ? null : SessionUsage.fromJson(data as Map<String, dynamic>);
       notifyListeners();
     } catch (_) {}
+  }
+
+  Future<void> refreshGitChanges() async {
+    final id = selectedSessionId;
+    if (id == null) return;
+    try {
+      final data = await ws.command('get_git_changes', {'sessionId': id});
+      gitChanges
+        ..clear()
+        ..addAll((data as List<dynamic>? ?? [])
+            .map((e) => GitFileChange.fromJson(e as Map<String, dynamic>)));
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<GitDiff?> getGitDiff(String path) async {
+    final id = selectedSessionId;
+    if (id == null) return null;
+    try {
+      final data = await ws.command('get_git_diff', {
+        'sessionId': id,
+        'path': path,
+      });
+      if (data == null) return null;
+      return GitDiff.fromJson(data as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> sendPrompt(String text) async {

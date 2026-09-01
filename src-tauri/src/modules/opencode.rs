@@ -507,6 +507,10 @@ fn finish_response(app: &AppHandle, session_id: &str, text: String) {
         serde_json::json!({ "sessionId": session_id }),
     );
 
+    // После ответа подтягиваем свежие Git-изменения проекта (могли появиться
+    // новые файлы/правки от инструментов).
+    broadcast_git_changes(app, session_id.to_string());
+
     let is_selected = {
         let state = app.state::<SharedState>();
         let s = state.0.lock().unwrap();
@@ -617,6 +621,49 @@ pub fn remember_session_project(app: &AppHandle, session_id: &str, project: &str
     projects.insert(session_id.to_string(), project.to_string());
 }
 
+/// Запоминает полный путь рабочей папки сессии (для Git-панели).
+pub fn remember_session_directory(app: &AppHandle, session_id: &str, directory: &str) {
+    if directory.is_empty() {
+        return;
+    }
+    let store = app.state::<ConversationStore>();
+    let mut dirs = store.directories.lock().unwrap();
+    dirs.insert(session_id.to_string(), directory.to_string());
+}
+
+/// Путь рабочей папки сессии (если известен). Для мобилки — по выбранной сессии.
+pub fn session_directory(app: &AppHandle, session_id: Option<&str>) -> Option<String> {
+    if let Some(sid) = session_id {
+        let store = app.state::<ConversationStore>();
+        let dir = store.directories.lock().unwrap().get(sid).cloned();
+        if let Some(dir) = dir {
+            if !dir.is_empty() {
+                return Some(dir);
+            }
+        }
+    }
+    let state = app.state::<SharedState>();
+    let s = state.0.lock().unwrap();
+    s.selected_session.as_ref().map(|t| t.instance_id.clone())
+}
+
+/// Считает Git-изменения проекта сессии и транслирует их во фронтенд и на мобилку.
+/// Вызывается после завершения ответа и при открытии окна чата.
+pub fn broadcast_git_changes(app: &AppHandle, session_id: String) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let Some(dir) = session_directory(&app, Some(&session_id)) else {
+            return;
+        };
+        let changes = crate::modules::git::changes(&dir);
+        crate::modules::mobile::emit_and_broadcast(
+            &app,
+            "git-changes",
+            serde_json::json!({ "sessionId": session_id, "changes": changes }),
+        );
+    });
+}
+
 /// Список id сессий, для которых сейчас открыто окно чата.
 pub fn open_session_ids(app: &AppHandle) -> Vec<String> {
     let store = app.state::<ConversationStore>();
@@ -633,6 +680,7 @@ pub fn mark_session_open(app: &AppHandle, session_id: &str) {
     open.insert(session_id.to_string());
     drop(open);
     let _ = app.emit("sessions-open-changed", open_session_ids(app));
+    broadcast_git_changes(app, session_id.to_string());
 }
 
 /// Помечает сессию как закрытую (окно чата уничтожено) и оповещает фронтенд.

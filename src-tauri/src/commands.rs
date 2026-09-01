@@ -424,14 +424,15 @@ pub fn select_opencode_session(
     } else {
         Some(model)
     };
+    crate::modules::opencode::remember_session_port(&app, &session_id, port);
+    crate::modules::opencode::remember_session_title(&app, &session_id, &title);
+    crate::modules::opencode::remember_session_project(&app, &session_id, &project);
+    crate::modules::opencode::remember_session_directory(&app, &session_id, &instance_id);
     s.active_instance = Some(crate::state::OpenCodeInstanceRef {
         id: instance_id,
         port,
         name: String::new(),
     });
-    crate::modules::opencode::remember_session_port(&app, &session_id, port);
-    crate::modules::opencode::remember_session_title(&app, &session_id, &title);
-    crate::modules::opencode::remember_session_project(&app, &session_id, &project);
     // Показываем последний ответ этой сессии и сбрасываем статус.
     s.response = crate::modules::opencode::latest_assistant_response(&app, &session_id);
     s.status = AppStatus::Idle;
@@ -510,6 +511,7 @@ pub fn create_session_inner(
     crate::modules::opencode::remember_session_port(app, &session.id, port);
     crate::modules::opencode::remember_session_title(app, &session.id, &session.title);
     crate::modules::opencode::remember_session_project(app, &session.id, &project);
+    crate::modules::opencode::remember_session_directory(app, &session.id, &worktree);
     s.response.clear();
     s.status = AppStatus::Idle;
     s.status_message = "Готов к работе".into();
@@ -812,4 +814,69 @@ pub async fn get_conversation(
 #[tauri::command]
 pub fn close_response_window(window: tauri::WebviewWindow) {
     let _ = window.close();
+}
+
+/// Список Git-изменений проекта текущей сессии (окно чата).
+#[tauri::command]
+pub async fn get_git_changes(
+    window: tauri::WebviewWindow,
+    app: AppHandle,
+) -> Vec<crate::modules::git::GitFileChange> {
+    let session_id = window
+        .label()
+        .strip_prefix("response-")
+        .unwrap_or_default()
+        .to_string();
+    if session_id.is_empty() {
+        return Vec::new();
+    }
+    // `git status`/`git diff` — подпроцессы, выполняем в фоне.
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::modules::opencode::session_directory(&app, Some(&session_id))
+            .map(|dir| crate::modules::git::changes(&dir))
+            .unwrap_or_default()
+    })
+    .await
+    .unwrap_or_default()
+}
+
+/// Дифф конкретного файла в проекте текущей сессии (окно чата).
+#[tauri::command]
+pub async fn get_git_diff(
+    window: tauri::WebviewWindow,
+    app: AppHandle,
+    path: String,
+) -> crate::modules::git::GitDiff {
+    let session_id = window
+        .label()
+        .strip_prefix("response-")
+        .unwrap_or_default()
+        .to_string();
+    if session_id.is_empty() {
+        return crate::modules::git::GitDiff {
+            path,
+            status: "modified".into(),
+            too_large: false,
+            diff: String::new(),
+        };
+    }
+    let path_for_fallback = path.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        match crate::modules::opencode::session_directory(&app, Some(&session_id)) {
+            Some(dir) => crate::modules::git::diff(&dir, &path),
+            None => crate::modules::git::GitDiff {
+                path,
+                status: "modified".into(),
+                too_large: false,
+                diff: String::new(),
+            },
+        }
+    })
+    .await
+    .unwrap_or_else(|_| crate::modules::git::GitDiff {
+        path: path_for_fallback,
+        status: "modified".into(),
+        too_large: false,
+        diff: String::new(),
+    })
 }

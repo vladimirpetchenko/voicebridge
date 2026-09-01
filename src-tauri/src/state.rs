@@ -173,6 +173,8 @@ pub struct ConversationStore {
     pub titles: Mutex<HashMap<String, String>>,
     /// Имя проекта (папки) для сессии — для шапки окна чата.
     pub projects: Mutex<HashMap<String, String>>,
+    /// Полный путь рабочей папки проекта для сессии — для Git-панели.
+    pub directories: Mutex<HashMap<String, String>>,
     /// Сессии, для которых сейчас открыто окно чата.
     pub open_sessions: Mutex<HashSet<String>>,
 }
@@ -184,6 +186,7 @@ impl Default for ConversationStore {
             ports: Mutex::new(HashMap::new()),
             titles: Mutex::new(HashMap::new()),
             projects: Mutex::new(HashMap::new()),
+            directories: Mutex::new(HashMap::new()),
             open_sessions: Mutex::new(HashSet::new()),
         }
     }
