@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Play, Plus, RefreshCw, RotateCcw, Square, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Play, Plus, RefreshCw, RotateCcw, Square, Trash2 } from "lucide-react";
 import { relTime } from "../../shared/lib/format";
 import type { OpenCodeInstance, OpenCodeSession, Project } from "../../shared/types";
 
@@ -51,11 +51,11 @@ export function ProjectsPanel(props: ProjectsPanelProps) {
       <div className="panel-header">
         <span>Проекты</span>
         <div className="panel-header-actions">
-          <button className="link-btn" onClick={onNewInstance} title="Новый проект (выбрать папку)">
-            <Plus size={13} /> Новый
+          <button className="panel-action" onClick={onNewInstance} title="Новый проект (выбрать папку)">
+            <Plus size={13} /> Новый проект
           </button>
-          <button className="link-btn" onClick={onRefresh} title="Обновить">
-            <RefreshCw size={13} />
+          <button className="panel-action" onClick={onRefresh} title="Обновить">
+            <RefreshCw size={13} /> Обновить
           </button>
         </div>
       </div>
@@ -80,8 +80,8 @@ export function ProjectsPanel(props: ProjectsPanelProps) {
                   <span className="project-time">{relTime(p.updated)}</span>
                 </div>
                 {p.running && (
-                  <button className="btn small new-session" onClick={() => onCreateSession(p.port, p.worktree)}>
-                    <Plus size={13} /> Новая сессия
+                  <button className="btn small add" onClick={() => onCreateSession(p.port, p.worktree)} title="Новая сессия">
+                    <Plus size={13} />
                   </button>
                 )}
                 {p.running ? (
@@ -93,9 +93,11 @@ export function ProjectsPanel(props: ProjectsPanelProps) {
                     <Play size={12} fill="currentColor" />
                   </button>
                 )}
-                <button className="project-hide" onClick={() => onHideProject(p.worktree)} title="Скрыть проект из списка">
-                  <X size={13} />
-                </button>
+                {p.running && (
+                  <button className="btn small remove" onClick={() => onHideProject(p.worktree)} title="Убрать проект из списка">
+                    <Trash2 size={13} />
+                  </button>
+                )}
               </div>
               {p.running && sessions.length === 0 && (
                 <div className="session-row empty">Нет сессий</div>
@@ -139,8 +141,8 @@ export function ProjectsPanel(props: ProjectsPanelProps) {
                   <span className="project-name" title={inst.name}>{inst.name}</span>
                   <span className="project-time">:{inst.port}</span>
                 </div>
-                <button className="btn small new-session" onClick={() => onCreateSession(inst.port, inst.id)}>
-                  <Plus size={13} /> Новая сессия
+                <button className="btn small add" onClick={() => onCreateSession(inst.port, inst.id)} title="Новая сессия">
+                  <Plus size={13} />
                 </button>
               </div>
               {inst.sessions.length === 0 && <div className="session-row empty">Нет сессий</div>}
