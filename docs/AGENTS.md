@@ -22,24 +22,30 @@ npm run build            # tsc + vite build
 
 ## Где что лежит
 
-- Фронтенд:
-  - `src/App.tsx` — главное окно `MainApp` (лаунчер: проекты + сессии) и окно
-    чата `ResponseView` (шапка с названием сессии/проекта, диалог, инструменты,
-    действия).
-  - `src/ChatInput.tsx` — панель ввода в чате: текстовое поле + отправка +
-    голосовая кнопка (тап/удержание/тишина), режимы отправки, индикатор записи.
-  - `src/Markdown.tsx` — рендер markdown (подсветка синтаксиса).
-  - `src/sounds.ts` — звуки интерфейса (Web Audio API, синтез без файлов).
-- Бэкенд:
-  - `src-tauri/src/commands.rs` — все `#[tauri::command]` (мост в фронтенд).
-  - `src-tauri/src/state.rs` — `AppState`, `ConversationStore`, типы.
-  - `src-tauri/src/logging.rs` — файловый логгер + перехват паник.
-  - `src-tauri/src/modules/audio.rs` — cpal, буфер, ресемплинг.
-  - `src-tauri/src/modules/stt.rs` — whisper, модели, скачивание.
-  - `src-tauri/src/modules/opencode.rs` — OpenCode (обнаружение, сессии,
-    проекты, стриминг SSE, диалоги, permission/question).
-  - `src-tauri/src/modules/mobile.rs` — мобильный доступ: встроенный
-    WebSocket-сервер (axum), токен/QR, команды и broadcast событий.
+Структура — Feature-Sliced Design (фронтенд) и модули по доменам (бэкенд,
+мобилка). Подробности — `docs/ARCHITECTURE.md`.
+
+- Фронтенд (`src/`, FSD):
+  - `src/app/App.tsx` — корень: по метке окна выбирает лаунчер или чат.
+  - `src/pages/launcher/` — `LauncherPage.tsx` (лаунчер), `SettingsOverlay.tsx`.
+  - `src/pages/chat/` — `ChatPage.tsx` (окно чата) + `components/` (пузыри,
+    размышления, карточки действий, чипы инструментов).
+  - `src/features/chat-input/ChatInput.tsx` — панель ввода в чате.
+  - `src/features/git/` — `GitPanel.tsx`, `GitDiffView.tsx`, `gitFormat.ts`.
+  - `src/shared/` — `types.ts`, `lib/` (format, hooks, sounds), `ui/Markdown.tsx`.
+- Бэкенд (`src-tauri/src/`):
+  - `commands/` — Tauri-команды (мост в фронтенд), по доменам: `recording`,
+    `settings`, `sessions`, `chat`, `mobile`, `git`, `system`; `mod.rs` — re-exports
+    + `emit_state`/`save_state`/`load_state`.
+  - `state.rs` — `AppState`, `ConversationStore`, типы.
+  - `logging.rs` — файловый логгер + перехват паник.
+  - `modules/audio.rs` — cpal, буфер, ресемплинг.
+  - `modules/stt.rs` — whisper, модели, скачивание.
+  - `modules/git.rs` — git status/diff.
+  - `modules/opencode/` — OpenCode (по подмодулям: `discovery`, `projects`,
+    `sessions`, `streaming`, `store`, `usage`, `actions`).
+  - `modules/mobile.rs` — мобильный доступ: WebSocket-сервер (axum), токен/QR,
+    команды и broadcast событий.
 - Проверочные бинарники — `src-tauri/examples/*.rs` (запуск:
   `cargo run --example opencode_check`).
 

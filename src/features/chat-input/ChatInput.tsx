@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Eye, Mic, MicVocal, Send, Square } from "lucide-react";
-import type { AppState } from "./types";
-import { playRecordingStart, playRecordingStop } from "./sounds";
+import type { AppState } from "../../shared/types";
+import { playRecordingStart, playRecordingStop } from "../../shared/lib/sounds";
 
 const WAVE_BARS = 24;
 /// Порог, после которого вставленный текст сворачивается в «вставлено ~N строк».
