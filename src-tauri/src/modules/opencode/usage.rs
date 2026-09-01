@@ -105,6 +105,12 @@ pub fn fetch_session_history(port: u16, session_id: &str) -> Result<Vec<Conversa
     let entries: Vec<HistoryMessage> = resp.json().map_err(|e| e.to_string())?;
 
     let mut messages = Vec::new();
+    // OpenCode разбивает один ответ ассистента на несколько сообщений:
+    // сначала шаг с размышлениями (reasoning) и инструментами, затем шаг с
+    // итоговым текстом. Доклеиваем размышления к следующему текстовому ответу,
+    // чтобы при загрузке истории они не выносились в отдельные сообщения.
+    let mut pending_reasoning = String::new();
+
     for entry in entries {
         let text = entry
             .parts
@@ -120,11 +126,38 @@ pub fn fetch_session_history(port: u16, session_id: &str) -> Result<Vec<Conversa
             .map(|p| p.text.trim())
             .collect::<Vec<_>>()
             .join("\n\n");
-        if text.is_empty() && reasoning.is_empty() {
+        let role = entry.info.role.clone();
+
+        // Шаг ассистента только с размышлениями (без текста) — накапливаем.
+        if role == "assistant" && text.is_empty() {
+            if !reasoning.is_empty() {
+                if !pending_reasoning.is_empty() {
+                    pending_reasoning.push_str("\n\n");
+                }
+                pending_reasoning.push_str(&reasoning);
+            }
+            continue;
+        }
+
+        if text.is_empty() {
             continue; // пропускаем сообщения-инструменты без текста
         }
+
+        let mut reasoning = reasoning;
+        if role == "assistant" {
+            if !pending_reasoning.is_empty() {
+                reasoning = if reasoning.is_empty() {
+                    std::mem::take(&mut pending_reasoning)
+                } else {
+                    format!("{}\n\n{}", std::mem::take(&mut pending_reasoning), reasoning)
+                };
+            }
+        } else {
+            pending_reasoning.clear();
+        }
+
         messages.push(ConversationMessage {
-            role: entry.info.role,
+            role,
             text,
             reasoning,
         });

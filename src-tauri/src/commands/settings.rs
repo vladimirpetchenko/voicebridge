@@ -13,7 +13,9 @@ pub fn list_microphones() -> Vec<String> {
 pub fn select_microphone(app: AppHandle, name: String) -> AppState {
     let state = app.state::<SharedState>();
     let mut s = state.0.lock().unwrap();
-    s.selected_microphone = Some(name);
+    // Пустая строка = «по умолчанию» — храним как None, иначе find_device
+    // ищет устройство с пустым именем и падает с «микрофон не найден».
+    s.selected_microphone = if name.is_empty() { None } else { Some(name) };
     let recording = s.status == AppStatus::Recording;
     let snapshot = s.clone();
     drop(s);

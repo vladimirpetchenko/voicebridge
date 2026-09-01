@@ -1,9 +1,10 @@
-import { ArrowLeft, GitBranch } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ArrowLeft, ChevronDown, ChevronRight, Folder, GitBranch } from "lucide-react";
 import type { GitDiff, GitFileChange } from "../../shared/types";
-import { basename, dirname, gitStatusMeta } from "./gitFormat";
+import { basename, gitStatusMeta, groupChangesByDir } from "./gitFormat";
 import { GitDiffView } from "./GitDiffView";
 
-/// Панель изменений: список файлов + дифф по клику.
+/// Панель изменений: файлы сгруппированы по папкам + дифф по клику.
 export function GitPanel({
   branch,
   changes,
@@ -21,6 +22,20 @@ export function GitPanel({
 }) {
   const totalAdd = changes.reduce((s, c) => s + c.additions, 0);
   const totalDel = changes.reduce((s, c) => s + c.deletions, 0);
+  const groups = useMemo(() => groupChangesByDir(changes), [changes]);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  const toggleDir = (dir: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(dir)) {
+        next.delete(dir);
+      } else {
+        next.add(dir);
+      }
+      return next;
+    });
+  };
 
   return (
     <div className="git-panel-inner">
@@ -69,26 +84,51 @@ export function GitPanel({
         </div>
       ) : (
         <div className="git-file-list">
-          {changes.map((c) => {
-            const meta = gitStatusMeta(c.status);
-            const Icon = meta.Icon;
+          {groups.map((g) => {
+            const isCollapsed = collapsed.has(g.dir);
             return (
-              <button
-                key={c.path}
-                className="git-file-row"
-                onClick={() => onSelect(c.path)}
-                title={c.path}
-              >
-                <Icon size={14} className={`git-file-icon ${meta.cls}`} />
-                <span className="git-file-path">
-                  <span className="git-file-name">{basename(c.path)}</span>
-                  <span className="git-file-dir">{dirname(c.path)}</span>
-                </span>
-                <span className="git-file-stats">
-                  {c.additions > 0 && <span className="git-adds">+{c.additions}</span>}
-                  {c.deletions > 0 && <span className="git-dels">−{c.deletions}</span>}
-                </span>
-              </button>
+              <div key={g.dir || "__root__"} className="git-group">
+                {g.dir !== "" && (
+                  <button
+                    className="git-folder-header"
+                    onClick={() => toggleDir(g.dir)}
+                    title={g.dir}
+                  >
+                    {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                    <Folder size={13} className="git-folder-icon" />
+                    <span className="git-folder-name">{g.dir}</span>
+                    <span className="git-folder-stats">
+                      {g.additions > 0 && <span className="git-adds">+{g.additions}</span>}
+                      {g.deletions > 0 && <span className="git-dels">−{g.deletions}</span>}
+                    </span>
+                  </button>
+                )}
+                {!isCollapsed && (
+                  <div className="git-group-files">
+                    {g.changes.map((c) => {
+                      const meta = gitStatusMeta(c.status);
+                      const Icon = meta.Icon;
+                      return (
+                        <button
+                          key={c.path}
+                          className="git-file-row"
+                          onClick={() => onSelect(c.path)}
+                          title={c.path}
+                        >
+                          <Icon size={14} className={`git-file-icon ${meta.cls}`} />
+                          <span className="git-file-path">
+                            <span className="git-file-name">{basename(c.path)}</span>
+                          </span>
+                          <span className="git-file-stats">
+                            {c.additions > 0 && <span className="git-adds">+{c.additions}</span>}
+                            {c.deletions > 0 && <span className="git-dels">−{c.deletions}</span>}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>

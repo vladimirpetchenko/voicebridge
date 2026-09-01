@@ -72,6 +72,13 @@ pub fn handle_stop_recording(app: &AppHandle) {
 
     match audio {
         Some((samples, rate, channels)) => {
+            // Диагностика: пик амплитуды. Если ~0 — микрофон ловит тишину
+            // (права macOS / не тот вход), а не проблему whisper.
+            let peak = samples.iter().fold(0.0f32, |m, s| m.max(s.abs()));
+            log::info!(
+                "audio captured: {} samples, rate={rate}, channels={channels}, peak={peak:.5}",
+                samples.len()
+            );
             let mono = crate::modules::audio::resample_to_16k_mono(&samples, rate, channels);
             let duration = mono.len() as f32 / 16000.0;
             if duration < 0.4 {
@@ -87,6 +94,23 @@ pub fn handle_stop_recording(app: &AppHandle) {
 /// Устанавливает распознанный текст и запускает отправку в OpenCode.
 /// Если сессия не выбрана — она будет создана автоматически.
 pub fn finish_transcription(app: &AppHandle, text: String) {
+    // whisper отдаёт спец-токен `[BLANK_AUDIO]`, когда речи не было — не считаем
+    // это текстом и не шлём его в OpenCode.
+    let trimmed = text.trim();
+    if trimmed.is_empty() || trimmed == "[BLANK_AUDIO]" {
+        let state = app.state::<SharedState>();
+        let mut s = state.0.lock().unwrap();
+        s.status = AppStatus::Idle;
+        s.status_message = "Ничего не распознано — проверьте микрофон".into();
+        s.transcript.clear();
+        s.response.clear();
+        let snapshot = s.clone();
+        drop(s);
+        emit_state(app, &snapshot);
+        save_state(app, &snapshot);
+        return;
+    }
+
     let (send_mode, target_session) = {
         let state = app.state::<SharedState>();
         let s = state.0.lock().unwrap();
@@ -102,12 +126,17 @@ pub fn finish_transcription(app: &AppHandle, text: String) {
     s.transcript = text.clone();
     s.recording_session_id = target_session.clone();
     s.response.clear();
+    // В режиме предпроверки текст остаётся в поле ввода — отправку делает
+    // пользователь; статус возвращаем в idle, иначе «Распознавание…» зависнет.
+    if send_mode != "direct" {
+        s.status = AppStatus::Idle;
+        s.status_message = "Готов к работе".into();
+    }
     let snapshot = s.clone();
     drop(s);
     emit_state(app, &snapshot);
     save_state(app, &snapshot);
 
-    // В режиме предпроверки текст остаётся в поле ввода — отправку делает пользователь.
     if send_mode == "direct" {
         crate::modules::opencode::send_prompt(app.clone(), text, target_session);
     }

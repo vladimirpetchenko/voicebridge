@@ -31,3 +31,12 @@ export function relTime(ms: number): string {
   if (h < 24) return `${h} ч назад`;
   return `${Math.floor(h / 24)} дн назад`;
 }
+
+/// Продолжительность в читаемом виде: `12с`, `1м 05с`.
+export function formatDuration(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  if (s < 60) return `${s}с`;
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return `${m}м ${String(rem).padStart(2, "0")}с`;
+}

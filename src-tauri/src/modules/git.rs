@@ -67,7 +67,12 @@ fn status_label(x: char, y: char) -> &'static str {
 
 /// Список изменённых файлов проекта (рабочее дерево + индекс).
 pub fn changes(directory: &str) -> Vec<GitFileChange> {
-    let Ok(status) = run_git(directory, &["status", "--porcelain=v1"]) else {
+    // `--untracked-files=all` разворачивает неотслеживаемые папки в отдельные
+    // файлы — иначе папка попадает в список одной строкой и клик по ней пуст.
+    let Ok(status) = run_git(
+        directory,
+        &["status", "--porcelain=v1", "--untracked-files=all"],
+    ) else {
         return Vec::new();
     };
 

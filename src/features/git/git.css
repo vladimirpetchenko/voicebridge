@@ -119,6 +119,58 @@
   padding: 6px;
 }
 
+.git-group {
+  margin-bottom: 2px;
+}
+
+.git-folder-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  transition: background 0.15s var(--ease), color 0.15s var(--ease);
+}
+
+.git-folder-header:hover {
+  background: var(--bg-panel-2);
+  color: var(--text);
+}
+
+.git-folder-icon {
+  color: var(--accent-2);
+  flex-shrink: 0;
+}
+
+.git-folder-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-folder-stats {
+  display: inline-flex;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.git-group-files {
+  padding-left: 10px;
+}
+
 .git-file-row {
   display: flex;
   align-items: center;

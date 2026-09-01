@@ -19,6 +19,46 @@ class GitScreen extends StatelessWidget {
     return i < 0 ? '' : p.substring(0, i);
   }
 
+  List<_GitGroup> _groupByDir(List<GitFileChange> changes) {
+    final map = <String, List<GitFileChange>>{};
+    for (final c in changes) {
+      map.putIfAbsent(_dirname(c.path), () => []).add(c);
+    }
+    final dirs = map.keys.toList()
+      ..sort((a, b) {
+        if (a.isEmpty) return -1;
+        if (b.isEmpty) return 1;
+        return a.compareTo(b);
+      });
+    return [
+      for (final dir in dirs)
+        () {
+          final items = map[dir]!..sort((a, b) => a.path.compareTo(b.path));
+          return _GitGroup(
+            dir: dir,
+            changes: items,
+            additions: items.fold<int>(0, (s, c) => s + c.additions),
+            deletions: items.fold<int>(0, (s, c) => s + c.deletions),
+          );
+        }(),
+    ];
+  }
+
+  Widget _fileTile(BuildContext context, GitFileChange c) {
+    return _FileTile(
+      name: _basename(c.path),
+      dir: '',
+      status: c.status,
+      additions: c.additions,
+      deletions: c.deletions,
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => GitDiffScreen(change: c)),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<AppController>();
@@ -26,6 +66,7 @@ class GitScreen extends StatelessWidget {
     final branch = controller.gitBranch;
     final adds = changes.fold<int>(0, (s, c) => s + c.additions);
     final dels = changes.fold<int>(0, (s, c) => s + c.deletions);
+    final groups = _groupByDir(changes);
 
     return Scaffold(
       appBar: AppBar(
@@ -68,29 +109,100 @@ class GitScreen extends StatelessWidget {
                   ),
                 ],
               )
-            : ListView.separated(
+            : ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
-                itemCount: changes.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 2),
-                itemBuilder: (context, i) {
-                  final c = changes[i];
-                  return _FileTile(
-                    name: _basename(c.path),
-                    dir: _dirname(c.path),
-                    status: c.status,
-                    additions: c.additions,
-                    deletions: c.deletions,
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => GitDiffScreen(change: c),
-                        ),
-                      );
-                    },
-                  );
-                },
+                children: [
+                  for (final g in groups)
+                    if (g.dir.isEmpty)
+                      ...g.changes.map((c) => _fileTile(context, c))
+                    else
+                      _FolderGroup(
+                        dir: g.dir,
+                        additions: g.additions,
+                        deletions: g.deletions,
+                        children: g.changes.map((c) => _fileTile(context, c)).toList(),
+                      ),
+                ],
               ),
+      ),
+    );
+  }
+}
+
+class _GitGroup {
+  final String dir;
+  final List<GitFileChange> changes;
+  final int additions;
+  final int deletions;
+
+  const _GitGroup({
+    required this.dir,
+    required this.changes,
+    required this.additions,
+    required this.deletions,
+  });
+}
+
+/// Сворачиваемая группа файлов по папке.
+class _FolderGroup extends StatelessWidget {
+  final String dir;
+  final int additions;
+  final int deletions;
+  final List<Widget> children;
+
+  const _FolderGroup({
+    required this.dir,
+    required this.additions,
+    required this.deletions,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        initiallyExpanded: true,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+        childrenPadding: const EdgeInsets.only(left: 8, bottom: 4),
+        leading: const Icon(Icons.folder_rounded,
+            size: 18, color: AppTheme.accent2),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                dir,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            if (additions > 0)
+              Text(
+                '+$additions',
+                style: const TextStyle(
+                  color: AppTheme.accent2,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            if (deletions > 0) ...[
+              const SizedBox(width: 6),
+              Text(
+                '−$deletions',
+                style: const TextStyle(
+                  color: AppTheme.danger,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
+        ),
+        children: children,
       ),
     );
   }

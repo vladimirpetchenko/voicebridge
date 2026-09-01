@@ -59,7 +59,7 @@ fn find_device(name: Option<&str>) -> Result<cpal::Device, String> {
     let host = cpal::default_host();
 
     match name {
-        Some(name) => {
+        Some(name) if !name.trim().is_empty() => {
             let devices = host.input_devices().map_err(|e| e.to_string())?;
             for device in devices {
                 if device.to_string() == name {
@@ -68,7 +68,7 @@ fn find_device(name: Option<&str>) -> Result<cpal::Device, String> {
             }
             Err("микрофон не найден".into())
         }
-        None => host
+        _ => host
             .default_input_device()
             .ok_or_else(|| "нет устройства ввода".into()),
     }

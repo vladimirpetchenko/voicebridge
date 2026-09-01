@@ -1,3 +1,4 @@
+import { HelpCircle, ShieldAlert } from "lucide-react";
 import type { PermissionRequest, QuestionRequest } from "../../../shared/types";
 
 /// Карточка запроса разрешения от OpenCode.
@@ -9,8 +10,11 @@ export function PermissionCard({
   onReply: (req: PermissionRequest, reply: string) => void;
 }) {
   return (
-    <div className="action-card">
-      <div className="action-card-title">OpenCode запрашивает разрешение</div>
+    <div className="action-card permission">
+      <div className="action-card-title">
+        <ShieldAlert size={16} className="action-card-icon" />
+        <span>OpenCode запрашивает разрешение</span>
+      </div>
       <div className="action-desc">
         Инструмент: <code>{request.permission || "?"}</code>
       </div>
@@ -18,13 +22,13 @@ export function PermissionCard({
         <pre className="action-patterns">{request.patterns.join("\n")}</pre>
       )}
       <div className="action-buttons">
-        <button className="btn play" onClick={() => onReply(request, "once")}>
+        <button className="btn small play" onClick={() => onReply(request, "once")}>
           Разрешить
         </button>
-        <button className="btn" onClick={() => onReply(request, "always")}>
+        <button className="btn small" onClick={() => onReply(request, "always")}>
           Всегда
         </button>
-        <button className="btn stop" onClick={() => onReply(request, "reject")}>
+        <button className="btn small stop" onClick={() => onReply(request, "reject")}>
           Запретить
         </button>
       </div>
@@ -44,14 +48,17 @@ export function QuestionCard({
 }) {
   const first = request.questions[0];
   return (
-    <div className="action-card">
-      <div className="action-card-title">{first?.header || "Вопрос OpenCode"}</div>
+    <div className="action-card question">
+      <div className="action-card-title">
+        <HelpCircle size={16} className="action-card-icon" />
+        <span>{first?.header || "Вопрос OpenCode"}</span>
+      </div>
       <div className="action-desc">{first?.question || ""}</div>
       <div className="action-options">
         {(first?.options ?? []).map((opt) => (
           <button
             key={opt.label}
-            className="btn"
+            className="btn small"
             onClick={() => onAnswer(request, [[opt.label]])}
             title={opt.description}
           >
@@ -60,7 +67,7 @@ export function QuestionCard({
         ))}
       </div>
       <div className="action-buttons">
-        <button className="btn stop" onClick={() => onReject(request)}>
+        <button className="btn small stop" onClick={() => onReject(request)}>
           Отклонить
         </button>
       </div>

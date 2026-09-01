@@ -3,12 +3,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { Bot, Check, Copy, GitBranch, Square, User, X } from "lucide-react";
+import { AlertTriangle, Bot, Check, Clock, Copy, GitBranch, Square, User, X } from "lucide-react";
 import Markdown from "../../shared/ui/Markdown";
 import ChatInput from "../../features/chat-input/ChatInput";
 import { GitPanel } from "../../features/git/GitPanel";
 import { useIsWide } from "../../shared/lib/hooks";
-import { formatCost, formatTokens } from "../../shared/lib/format";
+import { formatCost, formatDuration, formatTokens } from "../../shared/lib/format";
 import { playReceive, playSend } from "../../shared/lib/sounds";
 import type {
   ConversationMessage,
@@ -25,8 +25,13 @@ import { ReasoningBlock } from "./components/ReasoningBlock";
 import { PermissionCard, QuestionCard } from "./components/ActionCards";
 import { ToolChips } from "./components/ToolChips";
 
+type ChatMessage = ConversationMessage & { durationMs?: number };
+
+/// Порог «зависшего» ответа: если событий нет дольше этого времени.
+const STALL_THRESHOLD_MS = 90_000;
+
 export default function ChatPage() {
-  const [messages, setMessages] = useState<ConversationMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [tools, setTools] = useState<ToolAction[]>([]);
   const [permissions, setPermissions] = useState<PermissionRequest[]>([]);
   const [questions, setQuestions] = useState<QuestionRequest[]>([]);
@@ -35,6 +40,10 @@ export default function ChatPage() {
   const [usage, setUsage] = useState<SessionUsage | null>(null);
   const [busy, setBusy] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const busyStartRef = useRef<number | null>(null);
+  const lastActivityRef = useRef(0);
+  const [elapsed, setElapsed] = useState(0);
+  const [stalled, setStalled] = useState(false);
   const [gitChanges, setGitChanges] = useState<GitFileChange[]>([]);
   const [gitBranch, setGitBranch] = useState("");
   const [gitDiff, setGitDiff] = useState<GitDiff | null>(null);
@@ -136,6 +145,10 @@ export default function ChatPage() {
       (e) => {
         if (e.payload.sessionId !== sessionId) return;
         playSend();
+        busyStartRef.current = Date.now();
+        lastActivityRef.current = Date.now();
+        setElapsed(0);
+        setStalled(false);
         setBusy(true);
         setTools([]);
         setMessages((m) => [
@@ -149,6 +162,7 @@ export default function ChatPage() {
       "opencode-delta",
       (e) => {
         if (e.payload.sessionId !== sessionId) return;
+        lastActivityRef.current = Date.now();
         setMessages((m) => {
           const next = [...m];
           const last = next[next.length - 1];
@@ -165,6 +179,7 @@ export default function ChatPage() {
       "opencode-reasoning-delta",
       (e) => {
         if (e.payload.sessionId !== sessionId) return;
+        lastActivityRef.current = Date.now();
         setMessages((m) => {
           const next = [...m];
           const last = next[next.length - 1];
@@ -183,7 +198,18 @@ export default function ChatPage() {
     const unlistenDone = listen<{ sessionId: string }>("opencode-done", (e) => {
       if (e.payload.sessionId !== sessionId) return;
       playReceive();
+      const dur = busyStartRef.current !== null ? Date.now() - busyStartRef.current : 0;
+      busyStartRef.current = null;
       setBusy(false);
+      setStalled(false);
+      setMessages((m) => {
+        const next = [...m];
+        const last = next[next.length - 1];
+        if (last && last.role === "assistant") {
+          next[next.length - 1] = { ...last, durationMs: dur };
+        }
+        return next;
+      });
       // Обновляем счётчики после завершения ответа (БД может чуть отставать).
       setTimeout(refreshUsage, 500);
     });
@@ -191,13 +217,16 @@ export default function ChatPage() {
       "opencode-error",
       (e) => {
         if (e.payload.sessionId !== sessionId) return;
+        busyStartRef.current = null;
         setBusy(false);
+        setStalled(false);
       },
     );
     const unlistenTool = listen<{ sessionId: string } & ToolAction>(
       "opencode-tool",
       (e) => {
         if (e.payload.sessionId !== sessionId) return;
+        lastActivityRef.current = Date.now();
         const a: ToolAction = {
           callId: e.payload.callId,
           name: e.payload.name,
@@ -245,6 +274,39 @@ export default function ChatPage() {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight });
   }, [messages, tools, permissions, questions]);
 
+  // Тикающий таймер выполнения ответа (останавливается по завершении).
+  useEffect(() => {
+    if (!busy) {
+      setElapsed(0);
+      return;
+    }
+    const tick = () => {
+      if (busyStartRef.current !== null) {
+        setElapsed(Date.now() - busyStartRef.current);
+      }
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [busy]);
+
+  // Детект «зависшего» ответа (нет событий дольше порога).
+  useEffect(() => {
+    if (!busy) {
+      setStalled(false);
+      return;
+    }
+    const check = () => {
+      setStalled(
+        lastActivityRef.current > 0 &&
+          Date.now() - lastActivityRef.current > STALL_THRESHOLD_MS,
+      );
+    };
+    check();
+    const t = setInterval(check, 5000);
+    return () => clearInterval(t);
+  }, [busy]);
+
   const copyMessage = useCallback(async (text: string, idx: number) => {
     try {
       await writeText(text);
@@ -281,6 +343,8 @@ export default function ChatPage() {
     invoke("reject_question", { port: req.port, requestId: req.requestId }).catch(() => {});
     setQuestions((list) => list.filter((q) => q.requestId !== req.requestId));
   }, []);
+
+  const runningTool = tools.find((t) => t.state === "running")?.name;
 
   return (
     <main className="response-view">
@@ -319,19 +383,6 @@ export default function ChatPage() {
       <div className="response-view-main">
         <div className="response-view-chat">
           <div className="response-view-body" ref={bodyRef}>
-            {permissions.map((p) => (
-              <PermissionCard key={p.requestId} request={p} onReply={replyPermission} />
-            ))}
-
-            {questions.map((q) => (
-              <QuestionCard
-                key={q.requestId}
-                request={q}
-                onAnswer={answerQuestion}
-                onReject={rejectQuestion}
-              />
-            ))}
-
             <ToolChips tools={tools} />
 
             {messages.length === 0 ? (
@@ -373,19 +424,79 @@ export default function ChatPage() {
                           </span>
                         ) : null}
                       </div>
-                      {m.text && (
-                        <button
-                          className="msg-copy-btn"
-                          onClick={() => copyMessage(m.text, i)}
-                          title="Копировать сообщение"
-                        >
-                          {copiedIdx === i ? <Check size={13} /> : <Copy size={13} />}
-                        </button>
-                      )}
+                      <div className="chat-msg-meta">
+                        {m.text && (
+                          <button
+                            className="msg-copy-btn"
+                            onClick={() => copyMessage(m.text, i)}
+                            title="Копировать сообщение"
+                          >
+                            {copiedIdx === i ? <Check size={13} /> : <Copy size={13} />}
+                          </button>
+                        )}
+                        {(() => {
+                          const isLast = i === messages.length - 1;
+                          const dur = m.durationMs ?? (isLast && busy ? elapsed : undefined);
+                          return dur !== undefined ? (
+                            <span className="msg-duration" title="Время выполнения">
+                              <Clock size={11} /> {formatDuration(dur)}
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
                     </div>
                   </div>
                 ),
               )
+            )}
+          </div>
+          {(permissions.length > 0 || questions.length > 0 || (stalled && busy)) && (
+            <div className="action-dock">
+              {permissions.map((p) => (
+                <PermissionCard key={p.requestId} request={p} onReply={replyPermission} />
+              ))}
+              {questions.map((q) => (
+                <QuestionCard
+                  key={q.requestId}
+                  request={q}
+                  onAnswer={answerQuestion}
+                  onReject={rejectQuestion}
+                />
+              ))}
+              {stalled && busy && (
+                <div className="stall-warning">
+                  <div className="stall-warning-body">
+                    <AlertTriangle size={16} className="stall-warning-icon" />
+                    <div className="stall-warning-text">
+                      <span className="stall-warning-title">OpenCode, возможно, завис</span>
+                      <span className="stall-warning-msg">
+                        Нет ответа уже {formatDuration(elapsed)}
+                      </span>
+                    </div>
+                  </div>
+                  <button className="btn small stop" onClick={abort}>
+                    <Square size={13} fill="currentColor" /> Прервать
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          <div className="chat-activity-bar">
+            {busy ? (
+              <>
+                <span className="chat-activity-spinner" />
+                <span className="chat-activity-text">
+                  {runningTool ? (
+                    <>
+                      выполняет <code>{runningTool}</code>…
+                    </>
+                  ) : (
+                    "OpenCode работает…"
+                  )}
+                </span>
+              </>
+            ) : (
+              <span className="chat-activity-text idle">Готов к работе</span>
             )}
           </div>
           <ChatInput sessionId={sessionId} />
