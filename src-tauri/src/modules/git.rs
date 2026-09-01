@@ -40,16 +40,28 @@ const MAX_DIFF_BYTES: usize = 256 * 1024;
 
 /// Запускает `git` в указанной папке и возвращает stdout (или ошибку).
 fn run_git(directory: &str, args: &[&str]) -> Result<String, String> {
+    // `-c core.quotepath=false` заставляет git выводить не-ASCII пути как UTF-8
+    // (не octal-escape вида `\321\202...`). На Windows `core.quotepath` по
+    // умолчанию включён, из-за чего кириллические имена файлов превращались в
+    // «мусор» и не находились на диске. На macOS настройка и так выключена.
     let out = Command::new("git")
+        .arg("-c")
+        .arg("core.quotepath=false")
         .args(args)
         .current_dir(directory)
         .output()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            let msg = format!("git не запустился в {directory:?}: {e}");
+            log::error!("{msg}");
+            msg
+        })?;
     // `git diff` возвращает код 1, когда есть изменения — это не ошибка.
     if out.status.success() || !out.stdout.is_empty() {
         return Ok(String::from_utf8_lossy(&out.stdout).into_owned());
     }
-    Err(String::from_utf8_lossy(&out.stderr).into_owned())
+    let msg = String::from_utf8_lossy(&out.stderr).into_owned();
+    log::debug!("git {args:?} в {directory:?}: {msg}");
+    Err(msg)
 }
 
 /// Превращает двухсимвольный статус `git status --porcelain` в строку статуса.

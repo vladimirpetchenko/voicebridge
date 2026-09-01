@@ -90,12 +90,19 @@ fn opencode_command(bin: &str) -> Command {
     Command::new(bin)
 }
 
+/// Нормализует путь папки проекта к единому виду (прямые слэши).
+///
+/// На Windows `opencode db` отдаёт пути с `/`, а диалог выбора папки и
+/// `known_worktrees` могут содержать `\`. Без нормализации один и тот же
+/// проект считался разными и дублировался в списке. На macOS/linux пути уже
+/// с `/`, поэтому замена безвредна.
+pub(crate) fn normalize_worktree(worktree: &str) -> String {
+    worktree.replace('\\', "/")
+}
+
 /// Стабильный порт для проекта (по хэшу пути, диапазон 4100–4199).
 pub(crate) fn project_port(worktree: &str) -> u16 {
-    // Нормализуем разделители: `opencode db` отдаёт пути с `/`, а `GET /session`
-    // и диалог выбора папки — с `\`. Без нормализации один и тот же проект
-    // получал бы разные порты.
-    let normalized = worktree.replace('\\', "/");
+    let normalized = normalize_worktree(worktree);
     let mut h: u32 = 2_166_136_261;
     for b in normalized.bytes() {
         h ^= b as u32;
@@ -181,14 +188,15 @@ pub fn list_projects() -> Vec<Project> {
         .into_iter()
         .filter(|r| !r.worktree.is_empty() && Path::new(&r.worktree).parent().is_some())
         .map(|r| {
-            let name = Path::new(&r.worktree)
+            let worktree = normalize_worktree(&r.worktree);
+            let name = Path::new(&worktree)
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_else(|| r.worktree.clone());
-            let port = project_port(&r.worktree);
+                .unwrap_or_else(|| worktree.clone());
+            let port = project_port(&worktree);
             Project {
-                id: r.worktree.clone(),
-                worktree: r.worktree,
+                id: worktree.clone(),
+                worktree,
                 name,
                 updated: r.updated,
                 running: is_server_running(port),
@@ -203,17 +211,18 @@ pub fn list_projects() -> Vec<Project> {
 
 /// Собирает `Project` по папке и порту.
 fn make_project(worktree: &str, port: u16, running: bool) -> Project {
-    let name = Path::new(worktree)
+    let worktree = normalize_worktree(worktree);
+    let name = Path::new(&worktree)
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_else(|| worktree.to_string());
+        .unwrap_or_else(|| worktree.clone());
     let updated = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0);
     Project {
-        id: worktree.to_string(),
-        worktree: worktree.to_string(),
+        id: worktree.clone(),
+        worktree,
         name,
         updated,
         running,
@@ -228,11 +237,13 @@ pub fn project_for(worktree: &str) -> Project {
 }
 
 /// Список проектов из БД + дополнительные папки (запущенные через приложение,
-/// которых ещё нет в БД). Дубликаты по `worktree` отбрасываются.
+/// которых ещё нет в БД). Дубликаты по `worktree` (с нормализацией пути)
+/// отбрасываются.
 pub fn list_projects_with_extra(extra: &[String]) -> Vec<Project> {
     let mut list = list_projects();
     for w in extra {
-        if !list.iter().any(|p| p.worktree == *w) {
+        let nw = normalize_worktree(w);
+        if !list.iter().any(|p| normalize_worktree(&p.worktree) == nw) {
             list.push(project_for(w));
         }
     }

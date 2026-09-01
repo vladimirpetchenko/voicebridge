@@ -5527,6 +5527,7 @@ name = "voicebridge"
 version = "0.1.2"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "cpal",
  "futures-util",
  "local-ip-address",
