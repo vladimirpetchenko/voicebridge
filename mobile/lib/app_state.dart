@@ -34,6 +34,7 @@ class AppController extends ChangeNotifier {
   SessionUsage? usage;
 
   final List<GitFileChange> gitChanges = [];
+  String gitBranch = '';
 
   StreamSubscription<WsEvent>? _sub;
   StreamSubscription<void>? _discSub;
@@ -200,6 +201,7 @@ class AppController extends ChangeNotifier {
         break;
       case 'git-changes':
         if (event.data['sessionId'] != sessionId) return;
+        gitBranch = event.data['branch'] as String? ?? '';
         gitChanges
           ..clear()
           ..addAll(((event.data['changes'] as List<dynamic>?) ?? [])
@@ -406,11 +408,14 @@ class AppController extends ChangeNotifier {
     if (id == null) return;
     try {
       final data = await ws.command('get_git_changes', {'sessionId': id});
-      gitChanges
-        ..clear()
-        ..addAll((data as List<dynamic>? ?? [])
-            .map((e) => GitFileChange.fromJson(e as Map<String, dynamic>)));
-      notifyListeners();
+      if (data is Map<String, dynamic>) {
+        final info = GitInfo.fromJson(data);
+        gitBranch = info.branch;
+        gitChanges
+          ..clear()
+          ..addAll(info.changes);
+        notifyListeners();
+      }
     } catch (_) {}
   }
 

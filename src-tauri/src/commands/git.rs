@@ -2,28 +2,37 @@
 
 use tauri::AppHandle;
 
-/// Список Git-изменений проекта текущей сессии (окно чата).
+/// Сводка Git проекта текущей сессии (ветка + изменённые файлы) для окна чата.
 #[tauri::command]
 pub async fn get_git_changes(
     window: tauri::WebviewWindow,
     app: AppHandle,
-) -> Vec<crate::modules::git::GitFileChange> {
+) -> crate::modules::git::GitInfo {
     let session_id = window
         .label()
         .strip_prefix("response-")
         .unwrap_or_default()
         .to_string();
     if session_id.is_empty() {
-        return Vec::new();
+        return crate::modules::git::GitInfo {
+            branch: String::new(),
+            changes: Vec::new(),
+        };
     }
     // `git status`/`git diff` — подпроцессы, выполняем в фоне.
     tauri::async_runtime::spawn_blocking(move || {
         crate::modules::opencode::session_directory(&app, Some(&session_id))
-            .map(|dir| crate::modules::git::changes(&dir))
-            .unwrap_or_default()
+            .map(|dir| crate::modules::git::info(&dir))
+            .unwrap_or(crate::modules::git::GitInfo {
+                branch: String::new(),
+                changes: Vec::new(),
+            })
     })
     .await
-    .unwrap_or_default()
+    .unwrap_or(crate::modules::git::GitInfo {
+        branch: String::new(),
+        changes: Vec::new(),
+    })
 }
 
 /// Дифф конкретного файла в проекте текущей сессии (окно чата).

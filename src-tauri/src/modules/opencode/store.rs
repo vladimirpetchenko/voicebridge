@@ -58,11 +58,11 @@ pub fn broadcast_git_changes(app: &AppHandle, session_id: String) {
         let Some(dir) = session_directory(&app, Some(&session_id)) else {
             return;
         };
-        let changes = crate::modules::git::changes(&dir);
+        let info = crate::modules::git::info(&dir);
         crate::modules::mobile::emit_and_broadcast(
             &app,
             "git-changes",
-            serde_json::json!({ "sessionId": session_id, "changes": changes }),
+            serde_json::json!({ "sessionId": session_id, "branch": info.branch, "changes": info.changes }),
         );
     });
 }

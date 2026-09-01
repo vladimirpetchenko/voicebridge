@@ -5,12 +5,14 @@ import { GitDiffView } from "./GitDiffView";
 
 /// Панель изменений: список файлов + дифф по клику.
 export function GitPanel({
+  branch,
   changes,
   selected,
   loadingDiff,
   onSelect,
   onBack,
 }: {
+  branch: string;
   changes: GitFileChange[];
   selected: GitDiff | null;
   loadingDiff: boolean;
@@ -36,15 +38,20 @@ export function GitPanel({
               {basename(selected.path)}
             </span>
           ) : (
-            <>
-              <span>Изменения</span>
-              {changes.length > 0 && (
-                <span className="git-summary">
-                  <span className="git-adds">+{totalAdd}</span>
-                  <span className="git-dels">−{totalDel}</span>
-                </span>
-              )}
-            </>
+            <div className="git-panel-heading">
+              <span className="git-branch-name" title={branch}>
+                {branch || "Изменения"}
+              </span>
+              <span className="git-summary">
+                <span>{changes.length} файлов</span>
+                {changes.length > 0 && (
+                  <>
+                    <span className="git-adds">+{totalAdd}</span>
+                    <span className="git-dels">−{totalDel}</span>
+                  </>
+                )}
+              </span>
+            </div>
           )}
         </div>
       </div>

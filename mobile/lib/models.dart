@@ -303,6 +303,22 @@ class GitFileChange {
   }
 }
 
+class GitInfo {
+  final String branch;
+  final List<GitFileChange> changes;
+
+  const GitInfo({required this.branch, required this.changes});
+
+  factory GitInfo.fromJson(Map<String, dynamic> json) {
+    return GitInfo(
+      branch: json['branch'] as String? ?? '',
+      changes: (json['changes'] as List<dynamic>? ?? [])
+          .map((e) => GitFileChange.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+}
+
 class GitDiff {
   final String path;
   final String status;

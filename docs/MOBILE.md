@@ -97,9 +97,10 @@
   выбранной; возвращает цель `{instanceId, port, sessionId, title}`.
 - `hide_project` / `unhide_project` — скрыть/вернуть проект из лаунчера
   (без удаления папки); возвращают обновлённый массив `hiddenProjects`.
-- `get_git_changes` — список изменённых файлов проекта выбранной сессии:
-  массив `GitFileChange` (`path/status/additions/deletions`); `sessionId`
-  необязателен (по умолчанию — выбранная сессия).
+- `get_git_changes` — сводка Git проекта выбранной сессии: объект `GitInfo`
+  (`branch` — текущая ветка, `changes` — массив `GitFileChange` со полями
+  `path/status/additions/deletions`); `sessionId` необязателен (по умолчанию —
+  выбранная сессия).
 - `get_git_diff` — unified diff конкретного файла (`path`) проекта сессии:
   объект `GitDiff` (`path/status/tooLarge/diff`).
 - `select_session` — обязателен `sessionId`; `port`/`instanceId`/`title`/`model`
@@ -140,7 +141,7 @@
 { "type": "event", "name": "opencode-permission","data": { "sessionId": "…", "requestId": "…", "port": 0, "permission": "…", "patterns": [] } }
 { "type": "event", "name": "opencode-question", "data": { "sessionId": "…", "requestId": "…", "port": 0, "questions": [] } }
 { "type": "event", "name": "devices-changed", "data": [ { "id": "…", "name": "…", "lastSeen": 0 } ] }
-{ "type": "event", "name": "git-changes", "data": { "sessionId": "…", "changes": [ { "path": "…", "status": "modified", "additions": 1, "deletions": 1 } ] } }
+{ "type": "event", "name": "git-changes", "data": { "sessionId": "…", "branch": "main", "changes": [ { "path": "…", "status": "modified", "additions": 1, "deletions": 1 } ] } }
 ```
 
 Мобилка не обязана понимать все события сразу — на первом этапе достаточно

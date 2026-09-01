@@ -114,6 +114,11 @@ export interface GitFileChange {
   deletions: number;
 }
 
+export interface GitInfo {
+  branch: string;
+  changes: GitFileChange[];
+}
+
 export interface GitDiff {
   path: string;
   status: string;

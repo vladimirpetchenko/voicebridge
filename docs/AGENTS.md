@@ -73,7 +73,7 @@ npm run build            # tsc + vite build
   `opencode-tool {sessionId,callId,name,state}`, `opencode-error {sessionId,error}`,
   `opencode-done {sessionId}`, `opencode-permission {sessionId,requestId,port,permission,patterns}`,
   `opencode-question {sessionId,requestId,port,questions}`,
-  `git-changes {sessionId,changes}`, `open-settings` (string — имя вкладки настроек).
+  `git-changes {sessionId,branch,changes}`, `open-settings` (string — имя вкладки настроек).
 
 Tauri сам мапит camelCase (JS) ↔ snake_case (Rust) в аргументах команд.
 

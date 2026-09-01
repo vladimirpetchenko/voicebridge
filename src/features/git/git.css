@@ -78,6 +78,22 @@
   white-space: nowrap;
 }
 
+.git-panel-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.git-branch-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .git-back {
   flex-shrink: 0;
 }

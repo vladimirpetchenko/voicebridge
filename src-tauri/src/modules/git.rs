@@ -195,3 +195,25 @@ pub fn repo_name(directory: &str) -> String {
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| directory.to_string())
 }
+
+/// Текущая ветка репозитория (пустая строка, если не git-репозиторий).
+pub fn current_branch(directory: &str) -> String {
+    run_git(directory, &["rev-parse", "--abbrev-ref", "HEAD"])
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default()
+}
+
+/// Сводка: текущая ветка + изменённые файлы.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitInfo {
+    pub branch: String,
+    pub changes: Vec<GitFileChange>,
+}
+
+pub fn info(directory: &str) -> GitInfo {
+    GitInfo {
+        branch: current_branch(directory),
+        changes: changes(directory),
+    }
+}

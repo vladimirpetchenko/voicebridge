@@ -23,6 +23,7 @@ class GitScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = context.watch<AppController>();
     final changes = controller.gitChanges;
+    final branch = controller.gitBranch;
     final adds = changes.fold<int>(0, (s, c) => s + c.additions);
     final dels = changes.fold<int>(0, (s, c) => s + c.deletions);
 
@@ -31,12 +32,14 @@ class GitScreen extends StatelessWidget {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Изменения'),
-            if (changes.isNotEmpty)
-              Text(
-                '+$adds −$dels · ${changes.length} файлов',
-                style: const TextStyle(fontSize: 12, color: AppTheme.textDim),
-              ),
+            Text(
+              branch.isNotEmpty ? branch : 'Изменения',
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              '+$adds −$dels · ${changes.length} файлов',
+              style: const TextStyle(fontSize: 12, color: AppTheme.textDim),
+            ),
           ],
         ),
         actions: [

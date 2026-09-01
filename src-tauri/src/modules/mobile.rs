@@ -415,10 +415,13 @@ fn run_command(
                 .get("sessionId")
                 .and_then(|x| x.as_str())
                 .map(|s| s.to_string());
-            let changes = crate::modules::opencode::session_directory(app, session_id.as_deref())
-                .map(|dir| crate::modules::git::changes(&dir))
-                .unwrap_or_default();
-            Ok(serde_json::to_value(changes).unwrap_or(serde_json::Value::Array(vec![])))
+            let info = crate::modules::opencode::session_directory(app, session_id.as_deref())
+                .map(|dir| crate::modules::git::info(&dir))
+                .unwrap_or(crate::modules::git::GitInfo {
+                    branch: String::new(),
+                    changes: Vec::new(),
+                });
+            Ok(serde_json::to_value(info).unwrap_or(serde_json::Value::Null))
         }
         "get_git_diff" => {
             let path = get_str(args, "path");

@@ -14,6 +14,7 @@ import type {
   ConversationMessage,
   GitDiff,
   GitFileChange,
+  GitInfo,
   PermissionRequest,
   QuestionRequest,
   SessionInfo,
@@ -35,6 +36,7 @@ export default function ChatPage() {
   const [busy, setBusy] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
   const [gitChanges, setGitChanges] = useState<GitFileChange[]>([]);
+  const [gitBranch, setGitBranch] = useState("");
   const [gitDiff, setGitDiff] = useState<GitDiff | null>(null);
   const [gitLoadingDiff, setGitLoadingDiff] = useState(false);
   const [gitPanelOpen, setGitPanelOpen] = useState(false);
@@ -57,8 +59,11 @@ export default function ChatPage() {
   }, []);
 
   const refreshGitChanges = useCallback(() => {
-    invoke<GitFileChange[]>("get_git_changes")
-      .then(setGitChanges)
+    invoke<GitInfo>("get_git_changes")
+      .then((info) => {
+        setGitBranch(info.branch);
+        setGitChanges(info.changes);
+      })
       .catch(() => {});
   }, []);
 
@@ -100,10 +105,11 @@ export default function ChatPage() {
 
   useEffect(() => {
     refreshGitChanges();
-    const unlistenGit = listen<{ sessionId: string; changes: GitFileChange[] }>(
+    const unlistenGit = listen<{ sessionId: string; branch: string; changes: GitFileChange[] }>(
       "git-changes",
       (e) => {
         if (e.payload.sessionId !== sessionId) return;
+        setGitBranch(e.payload.branch ?? "");
         setGitChanges(e.payload.changes ?? []);
       },
     );
@@ -409,6 +415,7 @@ export default function ChatPage() {
             />
             <aside className="git-panel" style={{ width: gitWidth }}>
               <GitPanel
+                branch={gitBranch}
                 changes={gitChanges}
                 selected={gitDiff}
                 loadingDiff={gitLoadingDiff}
@@ -423,6 +430,7 @@ export default function ChatPage() {
         <div className="git-overlay" onClick={() => setGitPanelOpen(false)}>
           <aside className="git-drawer" onClick={(e) => e.stopPropagation()}>
             <GitPanel
+              branch={gitBranch}
               changes={gitChanges}
               selected={gitDiff}
               loadingDiff={gitLoadingDiff}
