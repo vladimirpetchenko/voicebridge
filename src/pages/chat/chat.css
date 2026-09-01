@@ -561,6 +561,17 @@
   animation: pulse 1.6s ease-in-out infinite;
 }
 
+.voice-btn.processing {
+  border-color: var(--accent);
+  color: var(--accent);
+  pointer-events: none;
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.25);
+}
+
+.voice-spinner {
+  animation: spin 0.8s linear infinite;
+}
+
 .voice-wave {
   display: flex;
   align-items: center;

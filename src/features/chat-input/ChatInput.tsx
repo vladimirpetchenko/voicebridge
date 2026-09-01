@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { Eye, Mic, MicVocal, Send, Square } from "lucide-react";
+import { Eye, Loader2, Mic, MicVocal, Send, Square } from "lucide-react";
 import type { AppState } from "../../shared/types";
 import { playRecordingStart, playRecordingStop } from "../../shared/lib/sounds";
 
@@ -33,10 +33,12 @@ export default function ChatInput({ sessionId }: { sessionId: string }) {
   const [text, setText] = useState("");
   const [pastes, setPastes] = useState<{ lines: number; text: string }[]>([]);
   const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [level, setLevel] = useState<number | null>(null);
   const [sendMode, setSendMode] = useState("direct");
 
   const recordingRef = useRef(false);
+  const processingRef = useRef(false);
   const silenceTimeoutRef = useRef(3);
   const silenceSinceRef = useRef<number | null>(null);
   const pressedRef = useRef(false);
@@ -50,6 +52,9 @@ export default function ChatInput({ sessionId }: { sessionId: string }) {
       .then((s) => {
         const mine = ownsRecording(s, sessionId);
         setIsRecording((s.recording || s.status === "recording") && mine);
+        setIsProcessing(
+          s.status === "processing" && mine && s.statusMessage.includes("Распознавание"),
+        );
         silenceTimeoutRef.current = s.silenceTimeout;
         setSendMode(s.sendMode);
         lastTranscriptRef.current = s.transcript;
@@ -61,6 +66,9 @@ export default function ChatInput({ sessionId }: { sessionId: string }) {
       setSendMode(e.payload.sendMode);
       const mine = ownsRecording(e.payload, sessionId);
       setIsRecording((e.payload.recording || e.payload.status === "recording") && mine);
+      setIsProcessing(
+        e.payload.status === "processing" && mine && e.payload.statusMessage.includes("Распознавание"),
+      );
       // В режиме предпроверки распознанный текст попадает в поле ввода —
       // но только в окно той сессии, которой адресована запись.
       // Существующий текст не затирается: новый дописывается в конец.
@@ -105,6 +113,10 @@ export default function ChatInput({ sessionId }: { sessionId: string }) {
     if (!isRecording) setLevel(null);
     if (isRecording) silenceSinceRef.current = null;
   }, [isRecording]);
+
+  useEffect(() => {
+    processingRef.current = isProcessing;
+  }, [isProcessing]);
 
   // Звук начала/конца записи (только в окне, которому принадлежит запись).
   const prevRecordingRef = useRef(false);
@@ -165,6 +177,7 @@ export default function ChatInput({ sessionId }: { sessionId: string }) {
   );
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
+    if (processingRef.current) return;
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
     } catch {
@@ -243,14 +256,32 @@ export default function ChatInput({ sessionId }: { sessionId: string }) {
           </button>
         )}
         <button
-          className={`voice-btn ${isRecording ? "recording" : ""}`}
+          className={`voice-btn ${isRecording ? "recording" : ""} ${isProcessing ? "processing" : ""}`}
           onPointerDown={onPointerDown}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
-          title={sendMode === "confirm" ? "Запись → в поле ввода" : "Тап — запись · удержание — говорить"}
-          aria-label={isRecording ? "Остановить запись" : "Записать голосовое"}
+          title={
+            isProcessing
+              ? "Распознавание речи…"
+              : sendMode === "confirm"
+                ? "Запись → в поле ввода"
+                : "Тап — запись · удержание — говорить"
+          }
+          aria-label={
+            isRecording
+              ? "Остановить запись"
+              : isProcessing
+                ? "Распознавание речи…"
+                : "Записать голосовое"
+          }
         >
-          {isRecording ? <Square size={16} fill="currentColor" /> : <Mic size={16} />}
+          {isRecording ? (
+            <Square size={16} fill="currentColor" />
+          ) : isProcessing ? (
+            <Loader2 size={16} className="voice-spinner" />
+          ) : (
+            <Mic size={16} />
+          )}
         </button>
       </div>
       <div className="chat-input-footer">

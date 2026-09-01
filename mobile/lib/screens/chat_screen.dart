@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../app_state.dart';
+import '../models.dart';
 import '../theme.dart';
 import '../widgets/chat_widgets.dart';
 import 'git_screen.dart';
@@ -79,6 +80,12 @@ class _ChatScreenState extends State<ChatScreen> {
               children: _buildItems(controller).reversed.toList(),
             ),
           ),
+          if (controller.pendingPermissions.isNotEmpty ||
+              controller.pendingQuestions.isNotEmpty)
+            _ActionDock(
+              permissions: controller.pendingPermissions,
+              questions: controller.pendingQuestions,
+            ),
           if (controller.usage != null) UsageBar(usage: controller.usage!),
           SafeArea(
             top: false,
@@ -128,12 +135,6 @@ class _ChatScreenState extends State<ChatScreen> {
         streaming: controller.busy && msg.text.isEmpty,
       ));
     }
-    for (final p in controller.pendingPermissions) {
-      items.add(PermissionCard(request: p));
-    }
-    for (final q in controller.pendingQuestions) {
-      items.add(QuestionCard(request: q));
-    }
     if (controller.busy) {
       items.add(const ThinkingIndicator());
     }
@@ -141,5 +142,36 @@ class _ChatScreenState extends State<ChatScreen> {
       items.add(ToolChips(tools: controller.tools));
     }
     return items;
+  }
+}
+
+/// Док запросов действий (разрешения/вопросы) — над полем ввода, всегда на виду.
+class _ActionDock extends StatelessWidget {
+  final List<PermissionRequest> permissions;
+  final List<QuestionRequest> questions;
+
+  const _ActionDock({required this.permissions, required this.questions});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.45,
+      ),
+      decoration: const BoxDecoration(
+        color: AppTheme.surface,
+        border: Border(top: BorderSide(color: Color(0x14FFFFFF))),
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final p in permissions) PermissionCard(request: p),
+            for (final q in questions) QuestionCard(request: q),
+          ],
+        ),
+      ),
+    );
   }
 }
