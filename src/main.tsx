@@ -5,7 +5,10 @@ import "@fontsource/fira-code/400.css";
 import "@fontsource/fira-code/500.css";
 import "@fontsource/fira-code/600.css";
 import "@fontsource/fira-code/700.css";
-import "./styles.css";
+import "./shared/styles/base.css";
+import "./pages/launcher/launcher.css";
+import "./pages/chat/chat.css";
+import "./features/git/git.css";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

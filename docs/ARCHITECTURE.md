@@ -30,20 +30,25 @@ src/
     launcher/                 # главное окно (лаунчер проектов/сессий)
       LauncherPage.tsx        # состояние + разводка
       SettingsOverlay.tsx     # модальное окно настроек
+      ProjectsPanel.tsx       # панель проектов/сессий
+      launcher.css            # стили лаунчера (в т.ч. настроек)
     chat/                     # окно чата (response-{sessionId})
       ChatPage.tsx            # состояние + диалог
       components/             # MessageBubble, ReasoningBlock, ActionCards, ToolChips
       toolIcon.ts
+      chat.css                # стили окна чата
   features/                   # переиспользуемые фичи
     chat-input/ChatInput.tsx  # панель ввода
     git/                      # Git-панель изменений
       GitPanel.tsx
       GitDiffView.tsx
       gitFormat.ts
+      git.css                 # стили Git-панели
   shared/                     # общий слой (без бизнес-логики)
     types.ts                  # доменные типы (мост с бэкендом)
     lib/                      # format, hooks, sounds
     ui/                       # Markdown
+    styles/base.css           # :root, сброс, примитивы (.btn/.field/.markdown)
 ```
 
 Правила:
