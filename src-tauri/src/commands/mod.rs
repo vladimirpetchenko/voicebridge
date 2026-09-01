@@ -80,10 +80,15 @@ pub(crate) fn known_worktrees(app: &AppHandle) -> Vec<String> {
 
 /// Запоминает папку запущенного проекта (для показа в лаунчере).
 pub(crate) fn register_worktree(app: &AppHandle, worktree: &str) {
+    let normalized = crate::modules::opencode::normalize_worktree(worktree);
     let state = app.state::<SharedState>();
     let mut s = state.0.lock().unwrap();
-    if !s.known_worktrees.iter().any(|w| w == worktree) {
-        s.known_worktrees.push(worktree.to_string());
+    if !s
+        .known_worktrees
+        .iter()
+        .any(|w| crate::modules::opencode::normalize_worktree(w) == normalized)
+    {
+        s.known_worktrees.push(normalized);
         let snapshot = s.clone();
         drop(s);
         save_state(app, &snapshot);

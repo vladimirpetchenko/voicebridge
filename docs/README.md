@@ -135,8 +135,9 @@ npm run tauri build   # релиз (.dmg / .exe)
 ```
 
 Требования: Rust (rustup), Node 20+, cmake (для whisper.cpp), Xcode CLT
-(macOS) или MSVC Build Tools (Windows). Первая сборка компилирует whisper.cpp
-(несколько минут).
+(macOS) или MSVC Build Tools + LLVM (`libclang.dll` для bindgen whisper-rs,
+`LIBCLANG_PATH` на `<LLVM>\bin`) (Windows). Первая сборка компилирует
+whisper.cpp (несколько минут).
 
 ## Автообновление
 

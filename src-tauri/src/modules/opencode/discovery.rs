@@ -3,6 +3,7 @@
 use super::{base_url, http_client, SessionInfo};
 use crate::state::{OpenCodeInstance, OpenCodeSession};
 use std::path::Path;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 use std::process::Command;
 use std::time::Duration;
 
@@ -23,7 +24,7 @@ pub(crate) fn extract_port(name: &str) -> Option<u16> {
 /// PID процессов opencode на Windows (через `tasklist`).
 #[cfg(target_os = "windows")]
 pub(crate) fn opencode_pids_windows() -> Vec<u32> {
-    let out = match Command::new("tasklist")
+    let out = match crate::no_console_command("tasklist")
         .args(["/FO", "CSV", "/NH"])
         .output()
     {
@@ -82,7 +83,7 @@ fn opencode_process_ports() -> Vec<u16> {
     if pids.is_empty() {
         return Vec::new();
     }
-    let out = match Command::new("netstat")
+    let out = match crate::no_console_command("netstat")
         .args(["-ano", "-p", "TCP"])
         .output()
     {

@@ -23,7 +23,10 @@ mod usage;
 
 pub use actions::{abort_session, reject_question, reply_permission, reply_question};
 pub use discovery::{create_session, discover_instances};
-pub use projects::{list_projects, list_projects_with_extra, opencode_binary, start_project, stop_project, Project};
+pub use projects::{
+    list_projects, list_projects_with_extra, opencode_binary, start_project, stop_project, Project,
+};
+pub(crate) use projects::normalize_worktree;
 pub use sessions::send_prompt;
 pub use store::{
     broadcast_git_changes, mark_session_closed, mark_session_open, open_session_ids,
@@ -34,6 +37,7 @@ pub use streaming::{conversation_for, latest_assistant_response};
 pub use usage::{fetch_session_history, fetch_session_usage};
 
 use crate::state::OpenCodeSession;
+use base64::Engine;
 use serde::Deserialize;
 use std::time::Duration;
 
@@ -41,12 +45,40 @@ pub(crate) fn base_url(port: u16) -> String {
     format!("http://127.0.0.1:{port}")
 }
 
+/// Значение заголовка `Authorization` для Basic-авторизации сервера OpenCode.
+///
+/// OpenCode защищает сервер HTTP Basic-авторизацией, если в окружении задан
+/// `OPENCODE_SERVER_PASSWORD` (username — `OPENCODE_SERVER_USERNAME`, по
+/// умолчанию `opencode`). Приложение запускает `opencode serve` с тем же
+/// окружением, поэтому читает тот же пароль и передаёт его во всех запросах.
+pub(crate) fn server_basic_auth() -> Option<String> {
+    let password = std::env::var("OPENCODE_SERVER_PASSWORD").ok()?;
+    if password.is_empty() {
+        return None;
+    }
+    let username = std::env::var("OPENCODE_SERVER_USERNAME")
+        .ok()
+        .filter(|u| !u.is_empty())
+        .unwrap_or_else(|| "opencode".to_string());
+    let creds = format!("{username}:{password}");
+    Some(format!(
+        "Basic {}",
+        base64::engine::general_purpose::STANDARD.encode(creds.as_bytes())
+    ))
+}
+
 pub(crate) fn http_client(timeout: Duration) -> reqwest::blocking::Client {
-    reqwest::blocking::Client::builder()
+    let mut builder = reqwest::blocking::Client::builder()
         .connect_timeout(Duration::from_secs(3))
-        .timeout(timeout)
-        .build()
-        .unwrap_or_else(|_| reqwest::blocking::Client::new())
+        .timeout(timeout);
+    if let Some(auth) = server_basic_auth() {
+        if let Ok(value) = reqwest::header::HeaderValue::from_str(&auth) {
+            let mut headers = reqwest::header::HeaderMap::new();
+            headers.insert(reqwest::header::AUTHORIZATION, value);
+            builder = builder.default_headers(headers);
+        }
+    }
+    builder.build().unwrap_or_else(|_| reqwest::blocking::Client::new())
 }
 
 #[derive(Deserialize)]

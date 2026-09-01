@@ -18,7 +18,11 @@ cargo build              # полная сборка
 npm run build            # tsc + vite build
 ```
 
-Требования: Rust (rustup), Node 20+, cmake (whisper.cpp), Xcode CLT (macOS).
+Требования: Rust (rustup), Node 20+, cmake (whisper.cpp). macOS — Xcode CLT (clang,
+Apple Silicon желателен для Metal-ускорения whisper). Windows — MSVC Build Tools
+(workload `VCTools`, нужен C++ для whisper.cpp) и LLVM (`libclang.dll` для bindgen
+whisper-rs: `LIBCLANG_PATH` на `<LLVM>\bin`). Первая сборка компилирует whisper.cpp
+из исходников и занимает несколько минут.
 
 ## Где что лежит
 
@@ -100,6 +104,25 @@ Tauri сам мапит camelCase (JS) ↔ snake_case (Rust) в аргумент
    app.state::<SharedState>();` затем `state.0.lock()` (иначе E0716 — временный
    `State` дропается). Не держи `Mutex<AppState>` при вызове функций, которые
    берут другие блокировки.
+8. **Windows: Basic-auth сервера OpenCode**. `opencode serve` требует HTTP
+   Basic-авторизацию, если в окружении задан `OPENCODE_SERVER_PASSWORD`
+   (username `OPENCODE_SERVER_USERNAME`, по умолчанию `opencode`). Десктопное
+   приложение OpenCode задаёт эти переменные — поэтому на Windows сервер отвечает
+   `401`, и без авторизации приложение считает его незапущенным («проект не
+   стартует», «нет сессий»). `http_client()` в `modules/opencode/mod.rs` читает
+   эти env и добавляет заголовок `Authorization: Basic …` во все запросы.
+   На macOS переменных обычно нет — заголовок не добавляется, поведение прежнее.
+9. **Windows: нормализация путей проектов**. `opencode db` отдаёт пути с `/`,
+   а диалог выбора папки и `known_worktrees` — с `\`. Без нормализации один проект
+   считался разными (дубли в лаунчере, дубли сессий). Все пути прогоняются через
+   `normalize_worktree()` (`\` → `/`) в `modules/opencode/projects.rs`; регистрация
+   в `commands/mod.rs` тоже нормализует. Не сравнивай пути строково без неё.
+10. **Windows: кириллица в Git**. `core.quotepath` на Windows по умолчанию
+    `true`, поэтому не-ASCII имена файлов в `git status`/`diff` выходят как
+    octal-escape (`\321\202…`), файл не находится на диске (счётчик строк = 0).
+    `run_git()` в `modules/git.rs` всегда передаёт `-c core.quotepath=false` —
+    иначе кириллические имена «мусорятся»/теряются. На macOS настройка и так
+    выключена.
 
 ## Конвенции
 
@@ -140,8 +163,10 @@ permission/question). Папки проектов, запущенные чере
 для диагностики прав микрофона. В мобилке — паритет: док запросов действий над
 полем ввода, размышления в рамках сообщения, Git-изменения по папкам. Обнаружение/
 остановка OpenCode работает и на Windows (`netstat`+`tasklist` для портов/PID,
-`taskkill` для остановки, `where` для поиска бинаря, `cmd /C` для npm-шимов
-`.cmd`/`.bat`), подсветка синтаксиса в markdown (`rehype-highlight` + тёмная
+`taskkill` для остановки, поиск бинаря через `env::var("PATH")` + `Path::is_file()`
+— НЕ через `where`, т.к. он отдаёт пути в OEM-кодировке и ломает кириллицу;
+`cmd /C` для npm-шимов `.cmd`/`.bat`), подсветка синтаксиса в markdown
+(`rehype-highlight` + тёмная
 тема hljs), иконки `lucide-react` вместо emoji, звуки записи/отправки/ответа и
 анимация «думает» в чате. Внизу окна чата — строка состояния (токены сессии,
 стоимость) из `GET /session/{id}`. В футере лаунчера показывается модель
