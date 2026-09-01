@@ -38,6 +38,8 @@ export default function ChatPage() {
   const [gitDiff, setGitDiff] = useState<GitDiff | null>(null);
   const [gitLoadingDiff, setGitLoadingDiff] = useState(false);
   const [gitPanelOpen, setGitPanelOpen] = useState(false);
+  const [gitWidth, setGitWidth] = useState(340);
+  const [gitResizing, setGitResizing] = useState(false);
   const wide = useIsWide(760);
 
   const sessionId = useMemo(() => {
@@ -72,6 +74,29 @@ export default function ChatPage() {
   const backToGitList = useCallback(() => {
     setGitDiff(null);
   }, []);
+
+  const startGitResize = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      setGitResizing(true);
+      const startX = e.clientX;
+      const startW = gitWidth;
+      const onMove = (ev: MouseEvent) => {
+        const w = startW + (startX - ev.clientX);
+        // Предел: панель не должна съедать чат — оставляем чату минимум 360px.
+        const maxW = Math.min(820, window.innerWidth - 360);
+        setGitWidth(Math.min(maxW, Math.max(260, w)));
+      };
+      const onUp = () => {
+        setGitResizing(false);
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    },
+    [gitWidth],
+  );
 
   useEffect(() => {
     refreshGitChanges();
@@ -376,15 +401,22 @@ export default function ChatPage() {
           </footer>
         </div>
         {wide && (
-          <aside className="git-panel">
-            <GitPanel
-              changes={gitChanges}
-              selected={gitDiff}
-              loadingDiff={gitLoadingDiff}
-              onSelect={selectGitFile}
-              onBack={backToGitList}
+          <>
+            <div
+              className={`git-resize-handle ${gitResizing ? "dragging" : ""}`}
+              onMouseDown={startGitResize}
+              title="Изменить ширину панели"
             />
-          </aside>
+            <aside className="git-panel" style={{ width: gitWidth }}>
+              <GitPanel
+                changes={gitChanges}
+                selected={gitDiff}
+                loadingDiff={gitLoadingDiff}
+                onSelect={selectGitFile}
+                onBack={backToGitList}
+              />
+            </aside>
+          </>
         )}
       </div>
       {!wide && gitPanelOpen && (

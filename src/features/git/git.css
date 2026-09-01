@@ -8,7 +8,7 @@
 
 .response-view-chat {
   flex: 1;
-  min-width: 0;
+  min-width: 360px;
   display: flex;
   flex-direction: column;
 }
@@ -27,6 +27,19 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+.git-resize-handle {
+  width: 6px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.15s var(--ease);
+}
+
+.git-resize-handle:hover,
+.git-resize-handle.dragging {
+  background: var(--accent);
 }
 
 .git-panel-inner {
@@ -180,8 +193,8 @@
 .git-diff {
   flex: 1;
   overflow: auto;
-  font-size: 11.5px;
-  line-height: 1.55;
+  font-size: 10.5px;
+  line-height: 1.5;
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
@@ -289,7 +302,7 @@
 }
 
 .git-drawer {
-  width: min(85vw, 380px);
+  width: min(92vw, 520px);
   height: 100%;
   background: var(--bg-panel);
   border-left: 1px solid var(--border);
