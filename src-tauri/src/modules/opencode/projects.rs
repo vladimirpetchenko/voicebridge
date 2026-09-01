@@ -201,11 +201,51 @@ pub fn list_projects() -> Vec<Project> {
     projects
 }
 
-/// Запускает headless-сервер OpenCode для проекта (в его папке).
-pub fn start_project(worktree: &str) -> Result<(), String> {
+/// Собирает `Project` по папке и порту.
+fn make_project(worktree: &str, port: u16, running: bool) -> Project {
+    let name = Path::new(worktree)
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| worktree.to_string());
+    let updated = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    Project {
+        id: worktree.to_string(),
+        worktree: worktree.to_string(),
+        name,
+        updated,
+        running,
+        port,
+    }
+}
+
+/// Проект по папке (статус `running` — по факту: слушает ли сервер порт).
+pub fn project_for(worktree: &str) -> Project {
+    let port = project_port(worktree);
+    make_project(worktree, port, is_server_running(port))
+}
+
+/// Список проектов из БД + дополнительные папки (запущенные через приложение,
+/// которых ещё нет в БД). Дубликаты по `worktree` отбрасываются.
+pub fn list_projects_with_extra(extra: &[String]) -> Vec<Project> {
+    let mut list = list_projects();
+    for w in extra {
+        if !list.iter().any(|p| p.worktree == *w) {
+            list.push(project_for(w));
+        }
+    }
+    list.sort_by(|a, b| b.updated.cmp(&a.updated));
+    list
+}
+
+/// Запускает headless-сервер OpenCode для проекта (в его папке) и возвращает
+/// проект (с оптимистичным `running=true` — сервер стартует чуть позже).
+pub fn start_project(worktree: &str) -> Result<Project, String> {
     let port = project_port(worktree);
     if is_server_running(port) {
-        return Ok(());
+        return Ok(make_project(worktree, port, true));
     }
     if !Path::new(worktree).is_dir() {
         return Err("папка проекта не существует".into());
@@ -218,7 +258,7 @@ pub fn start_project(worktree: &str) -> Result<(), String> {
         .stderr(std::process::Stdio::null())
         .spawn()
         .map_err(|e| format!("не удалось запустить opencode: {e}"))?;
-    Ok(())
+    Ok(make_project(worktree, port, true))
 }
 
 /// Останавливает headless-сервер OpenCode для проекта.

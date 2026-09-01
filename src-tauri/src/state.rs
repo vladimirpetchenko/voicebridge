@@ -93,6 +93,9 @@ pub struct AppState {
     /// Скрытые проекты (worktree-пути), не показываются в лаунчере.
     #[serde(default)]
     pub hidden_projects: Vec<String>,
+    /// Папки проектов, запущенные через приложение (даже без сессий в БД).
+    #[serde(default)]
+    pub known_worktrees: Vec<String>,
 }
 
 impl Default for AppState {
@@ -123,6 +126,7 @@ impl Default for AppState {
             active_instance: None,
             known_devices: Vec::new(),
             hidden_projects: Vec::new(),
+            known_worktrees: Vec::new(),
         }
     }
 }

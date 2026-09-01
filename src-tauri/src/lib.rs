@@ -58,6 +58,7 @@ pub fn run() {
                 s.mobile_token = loaded.mobile_token;
                 s.known_devices = loaded.known_devices;
                 s.hidden_projects = loaded.hidden_projects;
+                s.known_worktrees = loaded.known_worktrees;
             }
 
             // Токен мобильного доступа генерируется один раз и сохраняется.

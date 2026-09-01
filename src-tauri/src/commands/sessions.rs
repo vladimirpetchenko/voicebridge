@@ -81,11 +81,14 @@ pub fn select_opencode_instance(app: AppHandle, id: String, port: u16, name: Str
 }
 
 #[tauri::command]
-pub async fn list_projects() -> Vec<crate::modules::opencode::Project> {
+pub async fn list_projects(app: AppHandle) -> Vec<crate::modules::opencode::Project> {
+    let known = super::known_worktrees(&app);
     // Чтение БД opencode и проверка портов тяжёлые — не блокируем UI.
-    tauri::async_runtime::spawn_blocking(crate::modules::opencode::list_projects)
-        .await
-        .unwrap_or_default()
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::modules::opencode::list_projects_with_extra(&known)
+    })
+    .await
+    .unwrap_or_default()
 }
 
 /// Создаёт сессию и делает её выбранной. Синхронная часть (HTTP-вызов) —
@@ -150,10 +153,15 @@ pub async fn create_session(
 }
 
 #[tauri::command]
-pub async fn start_project(worktree: String) -> Result<Vec<crate::modules::opencode::Project>, String> {
+pub async fn start_project(
+    app: AppHandle,
+    worktree: String,
+) -> Result<Vec<crate::modules::opencode::Project>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         crate::modules::opencode::start_project(&worktree)?;
-        Ok(crate::modules::opencode::list_projects())
+        super::register_worktree(&app, &worktree);
+        let known = super::known_worktrees(&app);
+        Ok(crate::modules::opencode::list_projects_with_extra(&known))
     })
     .await
     .unwrap_or_else(|e| Err(e.to_string()))

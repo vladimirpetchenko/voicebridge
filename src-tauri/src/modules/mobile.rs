@@ -313,15 +313,20 @@ fn run_command(
             };
             Ok(serde_json::to_value(msgs).unwrap_or(serde_json::Value::Array(vec![])))
         }
-        "list_projects" => Ok(serde_json::to_value(crate::modules::opencode::list_projects())
-            .unwrap_or(serde_json::Value::Array(vec![]))),
+        "list_projects" => {
+            let known = crate::commands::known_worktrees(app);
+            Ok(serde_json::to_value(crate::modules::opencode::list_projects_with_extra(&known))
+                .unwrap_or(serde_json::Value::Array(vec![])))
+        }
         "start_project" => {
             let worktree = get_str(args, "worktree");
             if worktree.is_empty() {
                 return Err("worktree обязателен".into());
             }
             crate::modules::opencode::start_project(&worktree)?;
-            Ok(serde_json::to_value(crate::modules::opencode::list_projects())
+            crate::commands::register_worktree(app, &worktree);
+            let known = crate::commands::known_worktrees(app);
+            Ok(serde_json::to_value(crate::modules::opencode::list_projects_with_extra(&known))
                 .unwrap_or(serde_json::Value::Array(vec![])))
         }
         "stop_project" => {

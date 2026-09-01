@@ -23,7 +23,7 @@ mod usage;
 
 pub use actions::{abort_session, reject_question, reply_permission, reply_question};
 pub use discovery::{create_session, discover_instances};
-pub use projects::{list_projects, opencode_binary, start_project, stop_project, Project};
+pub use projects::{list_projects, list_projects_with_extra, opencode_binary, start_project, stop_project, Project};
 pub use sessions::send_prompt;
 pub use store::{
     broadcast_git_changes, mark_session_closed, mark_session_open, open_session_ids,

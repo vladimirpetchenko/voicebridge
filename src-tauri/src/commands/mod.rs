@@ -68,6 +68,28 @@ pub fn load_state(app: &AppHandle) -> Option<AppState> {
     serde_json::from_str(&data).ok()
 }
 
+/// Папки проектов, запущенные через приложение (даже без сессий в БД).
+pub(crate) fn known_worktrees(app: &AppHandle) -> Vec<String> {
+    app.state::<SharedState>()
+        .0
+        .lock()
+        .unwrap()
+        .known_worktrees
+        .clone()
+}
+
+/// Запоминает папку запущенного проекта (для показа в лаунчере).
+pub(crate) fn register_worktree(app: &AppHandle, worktree: &str) {
+    let state = app.state::<SharedState>();
+    let mut s = state.0.lock().unwrap();
+    if !s.known_worktrees.iter().any(|w| w == worktree) {
+        s.known_worktrees.push(worktree.to_string());
+        let snapshot = s.clone();
+        drop(s);
+        save_state(app, &snapshot);
+    }
+}
+
 /// Извлекает id сессии из метки окна чата (`response-{sessionId}`).
 pub(crate) fn session_id_from_window(window: &tauri::WebviewWindow) -> Option<String> {
     window
