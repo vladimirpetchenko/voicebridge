@@ -196,7 +196,12 @@ APK (Flutter, job `android` на `ubuntu-latest`, debug-подпись) по т�
    `src-tauri/src/modules/git.rs`; команды `get_git_changes`/`get_git_diff`
    (десктоп) и WS-команды `get_git_changes`/`get_git_diff` (мобилка), событие
    `git-changes`.
-3. **GUI-автоматизация** — вставка распознанного текста в выбранное окно.
+3. **Список коммитов в Git-панели** — вывод истории коммитов (`git log`) в
+   Git-панели (десктоп + мобилка): список коммитов (хэш, автор, дата, сообщение),
+   клик по коммиту — изменённые файлы и дифф коммита. Модуль
+   `src-tauri/src/modules/git.rs`; команды `get_git_commits`/`get_git_commit`
+   (десктоп) и WS-команды (мобилка).
+4. **GUI-автоматизация** — вставка распознанного текста в выбранное окно.
    Объёмная задача, отложена на самый конец: системные API для списка окон
    (macOS `CGWindowListCopyWindowInfo`, Windows `EnumWindows`), вставка текста
    (симуляция нажатий клавиш / буфер обмена + Ctrl/Cmd+V / Accessibility API).
