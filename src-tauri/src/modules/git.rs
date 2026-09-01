@@ -7,7 +7,6 @@
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::Path;
-use std::process::Command;
 
 /// Статус изменения файла.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -44,7 +43,7 @@ fn run_git(directory: &str, args: &[&str]) -> Result<String, String> {
     // (не octal-escape вида `\321\202...`). На Windows `core.quotepath` по
     // умолчанию включён, из-за чего кириллические имена файлов превращались в
     // «мусор» и не находились на диске. На macOS настройка и так выключена.
-    let out = Command::new("git")
+    let out = crate::no_console_command("git")
         .arg("-c")
         .arg("core.quotepath=false")
         .args(args)

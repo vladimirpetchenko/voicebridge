@@ -82,12 +82,12 @@ fn opencode_command(bin: &str) -> Command {
     #[cfg(target_os = "windows")]
     {
         if bin.ends_with(".cmd") || bin.ends_with(".bat") {
-            let mut c = Command::new("cmd");
+            let mut c = crate::no_console_command("cmd");
             c.arg("/C").arg(bin);
             return c;
         }
     }
-    Command::new(bin)
+    crate::no_console_command(bin)
 }
 
 /// Нормализует путь папки проекта к единому виду (прямые слэши).
@@ -144,7 +144,7 @@ fn opencode_pid_on_port(port: u16) -> Option<u32> {
     if pids.is_empty() {
         return None;
     }
-    let out = Command::new("netstat")
+    let out = crate::no_console_command("netstat")
         .args(["-ano", "-p", "TCP"])
         .output()
         .ok()?;
@@ -280,7 +280,7 @@ pub fn stop_project(worktree: &str) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     let status = {
         let pid_str = pid.to_string();
-        Command::new("taskkill")
+        crate::no_console_command("taskkill")
             .args(["/PID", pid_str.as_str(), "/F"])
             .status()
             .map_err(|e| e.to_string())?

@@ -7,6 +7,24 @@ mod tray;
 
 use tauri::Manager;
 
+/// Создаёт `Command` для запуска консольной утилиты без всплывающего окна
+/// консоли. Приложение — GUI-подсистема Windows, поэтому каждый запуск
+/// `cmd`/`git`/`netstat`/`tasklist`/`taskkill`/`opencode.cmd` без
+/// `CREATE_NO_WINDOW` открывает видимое окно терминала (раз в пару секунд —
+/// при опросе проектов/сессий/Git). На других ОС — обычный `Command::new`.
+#[cfg(target_os = "windows")]
+pub(crate) fn no_console_command(program: &str) -> std::process::Command {
+    use std::os::windows::process::CommandExt;
+    let mut cmd = std::process::Command::new(program);
+    cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    cmd
+}
+
+#[cfg(not(target_os = "windows"))]
+pub(crate) fn no_console_command(program: &str) -> std::process::Command {
+    std::process::Command::new(program)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
