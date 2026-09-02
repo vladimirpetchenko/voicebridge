@@ -166,10 +166,14 @@ whisper.cpp (несколько минут).
 
 ## Логи
 
-Лог пишется в папку логов приложения: `voicebridge.log`
-(macOS: `~/Library/Logs/com.voicebridge.app/`, Windows:
-`%APPDATA%\com.voicebridge.app\logs\`). Туда пишутся старт, загрузка/скачивание
-модели, транскрипция, обнаружение инстансов, ошибки и паники.
+Лог пишется в папку логов приложения (`app_log_dir()`): `voicebridge.log`
+- macOS: `~/Library/Logs/com.voicebridge.app/voicebridge.log`
+- Windows: `%LOCALAPPDATA%\com.voicebridge.app\logs\voicebridge.log`
+  (обычно `C:\Users\<имя>\AppData\Local\com.voicebridge.app\logs\`) — это
+  **Local** AppData, а не Roaming (`%APPDATA%`).
+
+Туда пишутся старт, загрузка/скачивание модели, транскрипция, обнаружение
+инстансов, ошибки и паники. Уровень — `Info` (debug-сообщения не пишутся).
 
 ## Известные особенности / грабли
 
