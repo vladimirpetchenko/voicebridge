@@ -192,7 +192,9 @@ pub fn discover_instances() -> Vec<OpenCodeInstance> {
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_else(|| directory.clone());
-            log::info!(
+            // Опрос идёт каждые ~500 мс — логируем на debug, чтобы не спамить
+            // файл лога (уровень по умолчанию Info).
+            log::debug!(
                 "discovered opencode project: {name} (port {port}, {} sessions)",
                 sessions.len()
             );
