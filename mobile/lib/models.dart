@@ -260,11 +260,15 @@ class ToolAction {
   final String callId;
   final String name;
   final String state;
+  final String input;
+  final String output;
 
   const ToolAction({
     required this.callId,
     required this.name,
     required this.state,
+    this.input = '',
+    this.output = '',
   });
 
   factory ToolAction.fromJson(Map<String, dynamic> json) {
@@ -272,6 +276,8 @@ class ToolAction {
       callId: json['callId'] as String? ?? '',
       name: json['name'] as String? ?? '',
       state: json['state'] as String? ?? '',
+      input: json['input'] as String? ?? '',
+      output: json['output'] as String? ?? '',
     );
   }
 

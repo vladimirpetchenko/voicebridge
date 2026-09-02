@@ -79,7 +79,7 @@ whisper-rs: `LIBCLANG_PATH` на `<LLVM>\bin`). Первая сборка ком
   `sessions-open-changed` (Vec<String> — id сессий с открытым окном чата),
   `opencode-user {sessionId,text}`, `opencode-delta {sessionId,text}`,
   `opencode-reasoning-delta {sessionId,text}`,
-  `opencode-tool {sessionId,callId,name,state}`, `opencode-error {sessionId,error}`,
+  `opencode-tool {sessionId,callId,name,state,input,output}`, `opencode-error {sessionId,error}`,
   `opencode-done {sessionId}`, `opencode-permission {sessionId,requestId,port,permission,patterns}`,
   `opencode-question {sessionId,requestId,port,questions}`,
   `git-changes {sessionId,branch,changes}`, `open-settings` (string — имя вкладки настроек).
@@ -185,7 +185,10 @@ Git, отдельный экран коммита). Обнаружение/
 `cmd /C` для npm-шимов `.cmd`/`.bat`), подсветка синтаксиса в markdown
 (`rehype-highlight` + тёмная
 тема hljs), иконки `lucide-react` вместо emoji, звуки записи/отправки/ответа и
-анимация «думает» в чате. Внизу окна чата — строка состояния (токены сессии,
+анимация «думает» в чате. Чипы инструментов показывают вход/выход вызова
+(`state.input`/`state.output` из `message.part.updated`, обрезаются до 2000
+символов на бэкенде): на десктопе — hover-попап + inline-превью вывода, на
+мобилке — tooltip по долгому нажатию. Внизу окна чата — строка состояния (токены сессии,
 стоимость) из `GET /session/{id}`. В футере лаунчера показывается модель
 OpenCode выбранной сессии (`opencode_model` из `/session`). Горячая клавиша
 записи настраивается («Настройки → Горячие клавиши», команда `set_hotkey`).

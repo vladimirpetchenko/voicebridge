@@ -178,7 +178,14 @@ class AppController extends ChangeNotifier {
         final action = ToolAction.fromJson(event.data);
         final idx = tools.indexWhere((t) => t.callId == action.callId);
         if (idx >= 0) {
-          tools[idx] = action;
+          final prev = tools[idx];
+          tools[idx] = ToolAction(
+            callId: action.callId,
+            name: action.name,
+            state: action.state,
+            input: action.input.isNotEmpty ? action.input : prev.input,
+            output: action.output.isNotEmpty ? action.output : prev.output,
+          );
         } else {
           tools.add(action);
         }

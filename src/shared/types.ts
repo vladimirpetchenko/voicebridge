@@ -41,6 +41,8 @@ export interface ToolAction {
   callId: string;
   name: string;
   state: "running" | "done" | "failed";
+  input?: string;
+  output?: string;
 }
 
 export interface ConversationMessage {

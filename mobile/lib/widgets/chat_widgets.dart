@@ -290,11 +290,18 @@ class QuestionCard extends StatelessWidget {
   }
 }
 
-/// Чипы запущенных инструментов OpenCode.
+/// Чипы запущенных инструментов OpenCode. По долгому нажатию — вход/выход.
 class ToolChips extends StatelessWidget {
   final List<ToolAction> tools;
 
   const ToolChips({super.key, required this.tools});
+
+  String _detail(ToolAction t) {
+    final parts = <String>[];
+    if (t.input.isNotEmpty) parts.add('Вход: ${t.input}');
+    if (t.output.isNotEmpty) parts.add('Выход: ${t.output}');
+    return parts.join('\n');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -303,21 +310,24 @@ class ToolChips extends StatelessWidget {
       runSpacing: 6,
       children: [
         for (final tool in tools)
-          Chip(
-            visualDensity: VisualDensity.compact,
-            avatar: Icon(
-              switch (tool.state) {
-                'running' => Icons.autorenew,
-                'done' => Icons.check,
-                'failed' => Icons.close,
-                _ => Icons.build,
-              },
-              size: 16,
-              color: tool.state == 'failed'
-                  ? const Color(0xFFFF6B6B)
-                  : AppTheme.textDim,
+          Tooltip(
+            message: _detail(tool),
+            child: Chip(
+              visualDensity: VisualDensity.compact,
+              avatar: Icon(
+                switch (tool.state) {
+                  'running' => Icons.autorenew,
+                  'done' => Icons.check,
+                  'failed' => Icons.close,
+                  _ => Icons.build,
+                },
+                size: 16,
+                color: tool.state == 'failed'
+                    ? const Color(0xFFFF6B6B)
+                    : AppTheme.textDim,
+              ),
+              label: Text(tool.name),
             ),
-            label: Text(tool.name),
           ),
       ],
     );

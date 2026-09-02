@@ -335,12 +335,19 @@ export default function ChatPage() {
           callId: e.payload.callId,
           name: e.payload.name,
           state: e.payload.state,
+          input: e.payload.input,
+          output: e.payload.output,
         };
         setTools((list) => {
           const idx = list.findIndex((t) => t.callId === a.callId);
           if (idx >= 0) {
             const next = [...list];
-            next[idx] = a;
+            const prev = next[idx];
+            next[idx] = {
+              ...a,
+              input: a.input || prev.input,
+              output: a.output || prev.output,
+            };
             return next;
           }
           return [...list, a];

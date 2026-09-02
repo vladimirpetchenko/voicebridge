@@ -16,6 +16,29 @@ fn prop_str(properties: &serde_json::Value, key: &str) -> Option<String> {
     properties.get(key)?.as_str().map(|s| s.to_string())
 }
 
+/// Максимальный размер входных/выходных данных инструмента, передаваемый в UI.
+const TOOL_FIELD_MAX: usize = 2000;
+
+/// Превращает JSON-значение в строку (строки как есть, остальное — компактный JSON).
+fn value_to_string(v: &serde_json::Value) -> String {
+    match v {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Null => String::new(),
+        other => serde_json::to_string(other).unwrap_or_default(),
+    }
+}
+
+/// Обрезает длинную строку до `TOOL_FIELD_MAX` символов.
+fn truncate_field(s: String) -> String {
+    if s.chars().count() > TOOL_FIELD_MAX {
+        let mut t: String = s.chars().take(TOOL_FIELD_MAX).collect();
+        t.push('…');
+        t
+    } else {
+        s
+    }
+}
+
 /// Читает SSE-поток событий и транслирует их во фронтенд.
 pub(crate) fn read_sse(
     resp: reqwest::blocking::Response,
@@ -113,10 +136,29 @@ pub(crate) fn read_sse(
                             "error" | "cancelled" => "failed",
                             _ => "running",
                         };
+                        let input = part
+                            .get("state")
+                            .and_then(|s| s.get("input"))
+                            .map(value_to_string)
+                            .map(truncate_field)
+                            .unwrap_or_default();
+                        let output = part
+                            .get("state")
+                            .and_then(|s| s.get("output"))
+                            .map(value_to_string)
+                            .map(truncate_field)
+                            .unwrap_or_default();
                         crate::modules::mobile::emit_and_broadcast(
                             app,
                             "opencode-tool",
-                            serde_json::json!({ "sessionId": session_id, "callId": call_id, "name": tool, "state": state }),
+                            serde_json::json!({
+                                "sessionId": session_id,
+                                "callId": call_id,
+                                "name": tool,
+                                "state": state,
+                                "input": input,
+                                "output": output,
+                            }),
                         );
                     }
                 }
