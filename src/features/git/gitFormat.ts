@@ -71,6 +71,38 @@ export function gitStatusMeta(status: string): { label: string; Icon: LucideIcon
   }
 }
 
+/// Первые 7 символов хэша коммита для отображения.
+export function shortHash(hash: string): string {
+  return hash.slice(0, 7);
+}
+
+/// Относительное время коммита («только что», «5 мин назад», …).
+export function relativeTime(unixSec: number): string {
+  if (!unixSec) return "";
+  const diff = Date.now() / 1000 - unixSec;
+  if (diff < 60) return "только что";
+  if (diff < 3600) return `${Math.floor(diff / 60)} мин назад`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} ч назад`;
+  if (diff < 86400 * 30) return `${Math.floor(diff / 86400)} дн назад`;
+  return new Date(unixSec * 1000).toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/// Полная дата и время коммита для детального вида.
+export function formatCommitDate(unixSec: number): string {
+  if (!unixSec) return "";
+  return new Date(unixSec * 1000).toLocaleString("ru-RU", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export interface DiffRow {
   old: string;
   neu: string;

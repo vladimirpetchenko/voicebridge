@@ -172,6 +172,9 @@ pub fn run() {
             commands::unhide_project,
             commands::get_git_changes,
             commands::get_git_diff,
+            commands::get_git_commits,
+            commands::get_git_commit,
+            commands::get_git_branches,
             commands::quit_app
         ])
         .run(tauri::generate_context!())

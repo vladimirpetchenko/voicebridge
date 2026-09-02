@@ -341,3 +341,97 @@ class GitDiff {
     );
   }
 }
+
+class GitCommit {
+  final String hash;
+  final String author;
+  final int date;
+  final String message;
+
+  const GitCommit({
+    required this.hash,
+    required this.author,
+    required this.date,
+    required this.message,
+  });
+
+  factory GitCommit.fromJson(Map<String, dynamic> json) {
+    return GitCommit(
+      hash: json['hash'] as String? ?? '',
+      author: json['author'] as String? ?? '',
+      date: (json['date'] as num?)?.toInt() ?? 0,
+      message: json['message'] as String? ?? '',
+    );
+  }
+}
+
+class GitCommitFile {
+  final String path;
+  final String status;
+  final int additions;
+  final int deletions;
+
+  const GitCommitFile({
+    required this.path,
+    required this.status,
+    required this.additions,
+    required this.deletions,
+  });
+
+  factory GitCommitFile.fromJson(Map<String, dynamic> json) {
+    return GitCommitFile(
+      path: json['path'] as String? ?? '',
+      status: json['status'] as String? ?? 'modified',
+      additions: (json['additions'] as num?)?.toInt() ?? 0,
+      deletions: (json['deletions'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+class GitCommitDetail {
+  final String hash;
+  final String author;
+  final int date;
+  final String message;
+  final List<GitCommitFile> files;
+  final String diff;
+  final bool tooLarge;
+
+  const GitCommitDetail({
+    required this.hash,
+    required this.author,
+    required this.date,
+    required this.message,
+    required this.files,
+    required this.diff,
+    required this.tooLarge,
+  });
+
+  factory GitCommitDetail.fromJson(Map<String, dynamic> json) {
+    return GitCommitDetail(
+      hash: json['hash'] as String? ?? '',
+      author: json['author'] as String? ?? '',
+      date: (json['date'] as num?)?.toInt() ?? 0,
+      message: json['message'] as String? ?? '',
+      files: (json['files'] as List<dynamic>? ?? [])
+          .map((e) => GitCommitFile.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      diff: json['diff'] as String? ?? '',
+      tooLarge: json['tooLarge'] as bool? ?? false,
+    );
+  }
+}
+
+class GitBranch {
+  final String name;
+  final bool current;
+
+  const GitBranch({required this.name, required this.current});
+
+  factory GitBranch.fromJson(Map<String, dynamic> json) {
+    return GitBranch(
+      name: json['name'] as String? ?? '',
+      current: json['current'] as bool? ?? false,
+    );
+  }
+}

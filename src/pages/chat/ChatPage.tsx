@@ -3,15 +3,19 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { AlertTriangle, Bot, Check, Clock, Copy, GitBranch, Square, User, X } from "lucide-react";
+import { AlertTriangle, Bot, Check, Clock, Copy, GitBranch, MessageSquare, Square, User, X } from "lucide-react";
 import Markdown from "../../shared/ui/Markdown";
 import ChatInput from "../../features/chat-input/ChatInput";
-import { GitPanel } from "../../features/git/GitPanel";
+import { GitPanel, type GitTab } from "../../features/git/GitPanel";
+import { MessagePanel } from "../../features/messages/MessagePanel";
 import { useIsWide } from "../../shared/lib/hooks";
 import { formatCost, formatDuration, formatTokens } from "../../shared/lib/format";
 import { playReceive, playSend } from "../../shared/lib/sounds";
 import type {
   ConversationMessage,
+  GitBranchInfo,
+  GitCommit,
+  GitCommitDetail,
   GitDiff,
   GitFileChange,
   GitInfo,
@@ -42,15 +46,29 @@ export default function ChatPage() {
   const bodyRef = useRef<HTMLDivElement>(null);
   const busyStartRef = useRef<number | null>(null);
   const lastActivityRef = useRef(0);
+  const highlightTimerRef = useRef<number | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [stalled, setStalled] = useState(false);
   const [gitChanges, setGitChanges] = useState<GitFileChange[]>([]);
   const [gitBranch, setGitBranch] = useState("");
   const [gitDiff, setGitDiff] = useState<GitDiff | null>(null);
   const [gitLoadingDiff, setGitLoadingDiff] = useState(false);
+  const [gitPanelVisible, setGitPanelVisible] = useState(true);
   const [gitPanelOpen, setGitPanelOpen] = useState(false);
   const [gitWidth, setGitWidth] = useState(340);
   const [gitResizing, setGitResizing] = useState(false);
+  const [gitTab, setGitTab] = useState<GitTab>("changes");
+  const [gitCommits, setGitCommits] = useState<GitCommit[]>([]);
+  const [gitCommitsLoading, setGitCommitsLoading] = useState(false);
+  const [gitCommit, setGitCommit] = useState<GitCommitDetail | null>(null);
+  const [gitCommitLoading, setGitCommitLoading] = useState(false);
+  const [gitBranches, setGitBranches] = useState<GitBranchInfo[]>([]);
+  const [gitBranchesLoading, setGitBranchesLoading] = useState(false);
+  const [msgPanelOpen, setMsgPanelOpen] = useState(false);
+  const [msgWidth, setMsgWidth] = useState(300);
+  const [msgResizing, setMsgResizing] = useState(false);
+  const [activeMsgIdx, setActiveMsgIdx] = useState<number | null>(null);
+  const [highlightedIdx, setHighlightedIdx] = useState<number | null>(null);
   const wide = useIsWide(760);
 
   const sessionId = useMemo(() => {
@@ -89,6 +107,55 @@ export default function ChatPage() {
     setGitDiff(null);
   }, []);
 
+  const refreshGitCommits = useCallback(() => {
+    setGitCommitsLoading(true);
+    invoke<GitCommit[]>("get_git_commits")
+      .then(setGitCommits)
+      .catch(() => {})
+      .finally(() => setGitCommitsLoading(false));
+  }, []);
+
+  const refreshGitBranches = useCallback(() => {
+    setGitBranchesLoading(true);
+    invoke<GitBranchInfo[]>("get_git_branches")
+      .then(setGitBranches)
+      .catch(() => {})
+      .finally(() => setGitBranchesLoading(false));
+  }, []);
+
+  const handleGitTab = useCallback(
+    (tab: GitTab) => {
+      setGitTab(tab);
+      if (tab === "commits") {
+        refreshGitCommits();
+      } else if (tab === "branches") {
+        refreshGitBranches();
+      }
+    },
+    [refreshGitCommits, refreshGitBranches],
+  );
+
+  const selectGitCommit = useCallback((hash: string) => {
+    setGitCommitLoading(true);
+    setGitCommit(null);
+    invoke<GitCommitDetail>("get_git_commit", { hash })
+      .then(setGitCommit)
+      .catch(() => {})
+      .finally(() => setGitCommitLoading(false));
+  }, []);
+
+  const backToCommitList = useCallback(() => {
+    setGitCommit(null);
+  }, []);
+
+  const toggleGitPanel = useCallback(() => {
+    if (wide) {
+      setGitPanelVisible((v) => !v);
+    } else {
+      setGitPanelOpen((v) => !v);
+    }
+  }, [wide]);
+
   const startGitResize = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
@@ -111,6 +178,43 @@ export default function ChatPage() {
     },
     [gitWidth],
   );
+
+  const startMsgResize = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      setMsgResizing(true);
+      const startX = e.clientX;
+      const startW = msgWidth;
+      const onMove = (ev: MouseEvent) => {
+        // Панель слева: тянем за правый край — вправо шире.
+        const w = startW + (ev.clientX - startX);
+        const maxW = Math.min(820, window.innerWidth - 360);
+        setMsgWidth(Math.min(maxW, Math.max(240, w)));
+      };
+      const onUp = () => {
+        setMsgResizing(false);
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    },
+    [msgWidth],
+  );
+
+  const scrollToMessage = useCallback((idx: number) => {
+    const el = bodyRef.current?.querySelector(`[data-msg-idx="${idx}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    setActiveMsgIdx(idx);
+    if (highlightTimerRef.current !== null) {
+      window.clearTimeout(highlightTimerRef.current);
+    }
+    setHighlightedIdx(null);
+    requestAnimationFrame(() => setHighlightedIdx(idx));
+    highlightTimerRef.current = window.setTimeout(() => setHighlightedIdx(null), 1600);
+  }, []);
 
   useEffect(() => {
     refreshGitChanges();
@@ -360,19 +464,24 @@ export default function ChatPage() {
           </div>
         </div>
         <div className="header-actions">
+          <button
+            className={`icon-btn msg-toggle${msgPanelOpen ? " active" : ""}`}
+            onClick={() => setMsgPanelOpen((o) => !o)}
+            title="Список сообщений"
+          >
+            <MessageSquare size={16} />
+          </button>
+          <button
+            className={`icon-btn git-toggle${(wide ? gitPanelVisible : gitPanelOpen) ? " active" : ""}`}
+            onClick={toggleGitPanel}
+            title="Изменения в проекте"
+          >
+            <GitBranch size={16} />
+            {gitChanges.length > 0 && <span className="git-badge">{gitChanges.length}</span>}
+          </button>
           {busy && (
             <button className="btn stop" onClick={abort} title="Прервать генерацию">
               <Square size={14} fill="currentColor" /> Стоп
-            </button>
-          )}
-          {!wide && (
-            <button
-              className="icon-btn git-toggle"
-              onClick={() => setGitPanelOpen((o) => !o)}
-              title="Изменения в проекте"
-            >
-              <GitBranch size={16} />
-              {gitChanges.length > 0 && <span className="git-badge">{gitChanges.length}</span>}
             </button>
           )}
           <button className="icon-btn" onClick={close} title="Закрыть">
@@ -381,6 +490,22 @@ export default function ChatPage() {
         </div>
       </header>
       <div className="response-view-main">
+        {wide && msgPanelOpen && (
+          <>
+            <aside className="msg-panel" style={{ width: msgWidth }}>
+              <MessagePanel
+                messages={messages}
+                activeIdx={activeMsgIdx}
+                onSelect={scrollToMessage}
+              />
+            </aside>
+            <div
+              className={`msg-resize-handle ${msgResizing ? "dragging" : ""}`}
+              onMouseDown={startMsgResize}
+              title="Изменить ширину панели"
+            />
+          </>
+        )}
         <div className="response-view-chat">
           <div className="response-view-body" ref={bodyRef}>
             <ToolChips tools={tools} />
@@ -393,7 +518,11 @@ export default function ChatPage() {
             ) : (
               messages.map((m, i) =>
                 m.role === "user" ? (
-                  <div key={i} className="chat-msg user">
+                  <div
+                    key={i}
+                    data-msg-idx={i}
+                    className={`chat-msg user${highlightedIdx === i ? " highlight" : ""}`}
+                  >
                     <div className="chat-avatar user">
                       <User size={14} />
                     </div>
@@ -402,7 +531,11 @@ export default function ChatPage() {
                     </div>
                   </div>
                 ) : (
-                  <div key={i} className="chat-msg assistant">
+                  <div
+                    key={i}
+                    data-msg-idx={i}
+                    className={`chat-msg assistant${highlightedIdx === i ? " highlight" : ""}`}
+                  >
                     <div className="chat-avatar assistant">
                       <Bot size={14} />
                     </div>
@@ -517,7 +650,7 @@ export default function ChatPage() {
             )}
           </footer>
         </div>
-        {wide && (
+        {wide && gitPanelVisible && (
           <>
             <div
               className={`git-resize-handle ${gitResizing ? "dragging" : ""}`}
@@ -528,10 +661,20 @@ export default function ChatPage() {
               <GitPanel
                 branch={gitBranch}
                 changes={gitChanges}
+                commits={gitCommits}
+                branches={gitBranches}
                 selected={gitDiff}
                 loadingDiff={gitLoadingDiff}
+                commitDetail={gitCommit}
+                loadingCommit={gitCommitLoading}
+                loadingCommits={gitCommitsLoading}
+                loadingBranches={gitBranchesLoading}
+                tab={gitTab}
+                onTab={handleGitTab}
                 onSelect={selectGitFile}
                 onBack={backToGitList}
+                onSelectCommit={selectGitCommit}
+                onBackCommit={backToCommitList}
               />
             </aside>
           </>
@@ -543,10 +686,34 @@ export default function ChatPage() {
             <GitPanel
               branch={gitBranch}
               changes={gitChanges}
+              commits={gitCommits}
+              branches={gitBranches}
               selected={gitDiff}
               loadingDiff={gitLoadingDiff}
+              commitDetail={gitCommit}
+              loadingCommit={gitCommitLoading}
+              loadingCommits={gitCommitsLoading}
+              loadingBranches={gitBranchesLoading}
+              tab={gitTab}
+              onTab={handleGitTab}
               onSelect={selectGitFile}
               onBack={backToGitList}
+              onSelectCommit={selectGitCommit}
+              onBackCommit={backToCommitList}
+            />
+          </aside>
+        </div>
+      )}
+      {!wide && msgPanelOpen && (
+        <div className="msg-overlay" onClick={() => setMsgPanelOpen(false)}>
+          <aside className="msg-drawer" onClick={(e) => e.stopPropagation()}>
+            <MessagePanel
+              messages={messages}
+              activeIdx={activeMsgIdx}
+              onSelect={(i) => {
+                scrollToMessage(i);
+                setMsgPanelOpen(false);
+              }}
             />
           </aside>
         </div>

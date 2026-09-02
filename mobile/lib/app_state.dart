@@ -434,6 +434,47 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  Future<List<GitCommit>> getGitCommits() async {
+    final id = selectedSessionId;
+    if (id == null) return const [];
+    try {
+      final data = await ws.command('get_git_commits', {'sessionId': id});
+      return (data as List<dynamic>? ?? [])
+          .map((e) => GitCommit.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<GitCommitDetail?> getGitCommit(String hash) async {
+    final id = selectedSessionId;
+    if (id == null) return null;
+    try {
+      final data = await ws.command('get_git_commit', {
+        'sessionId': id,
+        'hash': hash,
+      });
+      if (data == null) return null;
+      return GitCommitDetail.fromJson(data as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<List<GitBranch>> getGitBranches() async {
+    final id = selectedSessionId;
+    if (id == null) return const [];
+    try {
+      final data = await ws.command('get_git_branches', {'sessionId': id});
+      return (data as List<dynamic>? ?? [])
+          .map((e) => GitBranch.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
   Future<void> sendPrompt(String text) async {
     if (text.trim().isEmpty) return;
     final id = selectedSessionId;

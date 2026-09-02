@@ -126,6 +126,35 @@ export interface GitDiff {
   diff: string;
 }
 
+export interface GitCommit {
+  hash: string;
+  author: string;
+  date: number;
+  message: string;
+}
+
+export interface GitCommitFile {
+  path: string;
+  status: string;
+  additions: number;
+  deletions: number;
+}
+
+export interface GitCommitDetail {
+  hash: string;
+  author: string;
+  date: number;
+  message: string;
+  files: GitCommitFile[];
+  diff: string;
+  tooLarge: boolean;
+}
+
+export interface GitBranchInfo {
+  name: string;
+  current: boolean;
+}
+
 export interface SttModelInfo {
   id: string;
   name: string;

@@ -445,6 +445,62 @@ fn run_command(
             };
             Ok(serde_json::to_value(diff).unwrap_or(serde_json::Value::Null))
         }
+        "get_git_commits" => {
+            let session_id = args
+                .get("sessionId")
+                .and_then(|x| x.as_str())
+                .map(|s| s.to_string());
+            let commits =
+                match crate::modules::opencode::session_directory(app, session_id.as_deref()) {
+                    Some(dir) => crate::modules::git::recent_commits(&dir),
+                    None => Vec::new(),
+                };
+            Ok(serde_json::to_value(commits).unwrap_or(serde_json::Value::Array(vec![])))
+        }
+        "get_git_commit" => {
+            let hash = get_str(args, "hash");
+            let session_id = args
+                .get("sessionId")
+                .and_then(|x| x.as_str())
+                .map(|s| s.to_string());
+            let detail = if hash.trim().is_empty() {
+                crate::modules::git::GitCommitDetail {
+                    hash,
+                    author: String::new(),
+                    date: 0,
+                    message: String::new(),
+                    files: Vec::new(),
+                    diff: String::new(),
+                    too_large: false,
+                }
+            } else {
+                match crate::modules::opencode::session_directory(app, session_id.as_deref()) {
+                    Some(dir) => crate::modules::git::commit(&dir, &hash),
+                    None => crate::modules::git::GitCommitDetail {
+                        hash,
+                        author: String::new(),
+                        date: 0,
+                        message: String::new(),
+                        files: Vec::new(),
+                        diff: String::new(),
+                        too_large: false,
+                    },
+                }
+            };
+            Ok(serde_json::to_value(detail).unwrap_or(serde_json::Value::Null))
+        }
+        "get_git_branches" => {
+            let session_id = args
+                .get("sessionId")
+                .and_then(|x| x.as_str())
+                .map(|s| s.to_string());
+            let branches =
+                match crate::modules::opencode::session_directory(app, session_id.as_deref()) {
+                    Some(dir) => crate::modules::git::branches(&dir),
+                    None => Vec::new(),
+                };
+            Ok(serde_json::to_value(branches).unwrap_or(serde_json::Value::Array(vec![])))
+        }
         _ => Err(format!("неизвестная команда: {name}")),
     }
 }

@@ -35,7 +35,10 @@ whisper-rs: `LIBCLANG_PATH` на `<LLVM>\bin`). Первая сборка ком
   - `src/pages/chat/` — `ChatPage.tsx` (окно чата) + `components/` (пузыри,
     размышления, карточки действий, чипы инструментов).
   - `src/features/chat-input/ChatInput.tsx` — панель ввода в чате.
-  - `src/features/git/` — `GitPanel.tsx`, `GitDiffView.tsx`, `gitFormat.ts`.
+  - `src/features/git/` — `GitPanel.tsx`, `GitDiffView.tsx`, `GitCommits.tsx`,
+    `GitBranches.tsx`, `gitFormat.ts`.
+  - `src/features/messages/` — `MessagePanel.tsx` (панель сообщений, навигация
+    по чату).
   - `src/shared/` — `types.ts`, `lib/` (format, hooks, sounds), `ui/Markdown.tsx`.
 - Бэкенд (`src-tauri/src/`):
   - `commands/` — Tauri-команды (мост в фронтенд), по доменам: `recording`,
@@ -45,7 +48,7 @@ whisper-rs: `LIBCLANG_PATH` на `<LLVM>\bin`). Первая сборка ком
   - `logging.rs` — файловый логгер + перехват паник.
   - `modules/audio.rs` — cpal, буфер, ресемплинг.
   - `modules/stt.rs` — whisper, модели, скачивание.
-  - `modules/git.rs` — git status/diff.
+  - `modules/git.rs` — git status/diff/log/show/for-each-ref.
   - `modules/opencode/` — OpenCode (по подмодулям: `discovery`, `projects`,
     `sessions`, `streaming`, `store`, `usage`, `actions`).
   - `modules/mobile.rs` — мобильный доступ: WebSocket-сервер (axum), токен/QR,
@@ -68,7 +71,9 @@ whisper-rs: `LIBCLANG_PATH` на `<LLVM>\bin`). Первая сборка ком
   `list_open_session_ids`, `reply_permission`, `reply_question`,
   `reject_question`, `get_opencode_binary`, `check_update`,
   `get_mobile_info`, `set_mobile_enabled`, `regenerate_mobile_token`,
-  `get_git_changes`, `get_git_diff`, `quit_app`.
+  `get_git_changes`, `get_git_diff`, `get_git_commits`, `get_git_commit`,
+  `get_git_branches`,
+  `quit_app`.
 - События (`listen`): `state-changed` (AppState), `audio-level` (number),
   `model-download-progress/-done/-error`, `model-loading/-loaded/-load-error`,
   `sessions-open-changed` (Vec<String> — id сессий с открытым окном чата),
@@ -152,16 +157,28 @@ permission/question). Папки проектов, запущенные чере
 запросы действий (разрешения/вопросы) в «доке» над полем ввода (всегда на виду),
 время выполнения ответа (реалтайм + замирает по завершении, `formatDuration`),
 строка статуса над инпутом («работает…» / «выполняет `tool`…») и предупреждение
-«возможно, завис» (нет событий 90 с, `STALL_THRESHOLD_MS`). Git-панель: изменённые
-файлы, сгруппированные по папкам (`groupChangesByDir`), дифф по клику;
+«возможно, завис» (нет событий 90 с, `STALL_THRESHOLD_MS`). Git-панель с тремя
+вкладками: «Изменения» (файлы, сгруппированные по папкам `groupChangesByDir`,
+дифф по клику), «История» (список коммитов `git log` — хэш/автор/дата/сообщение;
+клик по коммиту — изменённые файлы и дифф коммита `git show`, компоненты
+ `GitCommits.tsx`) и «Ветки» (локальные ветки `git for-each-ref`, текущая с
+бейджем «текущая», компонент `GitBranches.tsx`).
 `git status --untracked-files=all` разворачивает неотслеживаемые папки в файлы.
+Слева — скрываемая панель сообщений (`features/messages/MessagePanel.tsx`):
+список запросов пользователя с превью, клик — переход к сообщению (скролл +
+подсветка, `data-msg-idx`/`scrollIntoView`); на узком окне — шторка слева. Ширина
+панели тянется за край (как Git-панель). Git-панель и панель сообщений
+переключаются кнопками в шапке (рядом справа); Git-панель скрыта/показана
+состоянием `gitPanelVisible` (широкое окно) / `gitPanelOpen` (узкое).
 История из OpenCode склеивает размышления (reasoning) с итоговым текстом одного
 ответа. Голос: `[BLANK_AUDIO]` фильтруется (показ «Ничего не распознано»), пустое
 имя микрофона = «по умолчанию» (None), статус не зависает в «Распознавание…» в
 режиме предпросмотра; на голосовой кнопке — спиннер во время распознавания
 (`isProcessing` в `ChatInput`); в лог пишется `peak` амплитуды захваченного звука
 для диагностики прав микрофона. В мобилке — паритет: док запросов действий над
-полем ввода, размышления в рамках сообщения, Git-изменения по папкам. Обнаружение/
+полем ввода, размышления в рамках сообщения, Git-изменения по папкам, история
+коммитов и список веток (переключатель «Изменения»/«История»/«Ветки» на экране
+Git, отдельный экран коммита). Обнаружение/
 остановка OpenCode работает и на Windows (`netstat`+`tasklist` для портов/PID,
 `taskkill` для остановки, поиск бинаря через `env::var("PATH")` + `Path::is_file()`
 — НЕ через `where`, т.к. он отдаёт пути в OEM-кодировке и ломает кириллицу;
@@ -189,7 +206,8 @@ OpenCode выбранной сессии (`opencode_model` из `/session`). Г�
 порт 47800, токен/QR, команды `ping/list_sessions/list_projects/start_project/
 stop_project/create_session/hide_project/unhide_project/select_session/
 send_prompt/abort/get_conversation/get_state/get_session_usage/reply_permission/
-reply_question/reject_question/register_device`, трансляция `state-changed`,
+reply_question/reject_question/register_device/get_git_changes/get_git_diff/
+get_git_commits/get_git_commit/get_git_branches`, трансляция `state-changed`,
 `devices-changed` и `opencode-*`).
 Flutter-клиент в `mobile/` (этапы 2–3 готовы): пейринг по QR/ручному вводу,
 лаунчер проектов с сессиями («Новая сессия», скрытие/возврат проектов,
@@ -216,23 +234,33 @@ APK (Flutter, job `android` на `ubuntu-latest`, debug-подпись) по т�
   отдельный экран в мобилке. Модуль `src-tauri/src/modules/git.rs`; команды
   `get_git_changes`/`get_git_diff` (десктоп) и WS-команды (мобилка), событие
   `git-changes`.
+- ✅ **Список коммитов в Git-панели** (десктоп + мобилка) — вкладка «История»
+  в Git-панели: список коммитов (`git log` — хэш/автор/дата/сообщение), клик по
+  коммиту — изменённые файлы и дифф (`git show`). Модуль
+  `src-tauri/src/modules/git.rs` (типы `GitCommit`/`GitCommitDetail`,
+  `recent_commits`/`commit`); команды `get_git_commits`/`get_git_commit`
+  (десктоп) и WS-команды (мобилка). Фронтенд — `GitCommits.tsx` + вкладки в
+  `GitPanel`; мобилка — переключатель в `git_screen.dart` + экран `GitCommitScreen`.
+- ✅ **Просмотр веток в Git-панели** (десктоп + мобилка) — вкладка «Ветки»:
+  список локальных веток (`git for-each-ref refs/heads`), текущая помечена
+  бейджем «текущая». Модуль `modules/git.rs` (тип `GitBranch`, `branches()`);
+  команда `get_git_branches` (десктоп) и WS-команда (мобилка). Фронтенд —
+  `GitBranches.tsx`; мобилка — вкладка в `git_screen.dart` (`_BranchTile`).
+- ✅ **Панель сообщений (десктоп)** — скрываемая левая панель со списком
+  запросов пользователя (превью), клик — переход к сообщению (скролл +
+  подсветка); на узком окне — шторка слева. Компонент
+  `features/messages/MessagePanel.tsx`, переключение из шапки (кнопка слева),
+  ширина тянется за край.
 
 Далее:
 
-1. **Список коммитов в Git-панели** — вывод истории коммитов (`git log`) в
-   Git-панели (десктоп + мобилка): список коммитов (хэш, автор, дата, сообщение),
-   клик по коммиту — изменённые файлы и дифф коммита. Модуль
-   `src-tauri/src/modules/git.rs`; команды `get_git_commits`/`get_git_commit`
-   (десктоп) и WS-команды (мобилка).
-2. **Панель сообщений (десктоп)** — список сообщений диалога с переходом к
-   любому сообщению (навигация по чату).
-3. **Скролл чата** — не автоскроллить вниз, пока ответ OpenCode продолжает
+1. **Скролл чата** — не автоскроллить вниз, пока ответ OpenCode продолжает
    стримиться: позиция «замирает» (можно читать историю); к низу — по явному
    действию/кнопке.
-4. **Управление сессиями** — удаление сессии из лаунчера (десктоп + мобилка) и
+2. **Управление сессиями** — удаление сессии из лаунчера (десктоп + мобилка) и
    автоматическое название: если сессия была пустой (без заголовка), после
    первого сообщения подставлять осмысленное имя.
-5. **GUI-автоматизация** — вставка распознанного текста в выбранное окно.
+3. **GUI-автоматизация** — вставка распознанного текста в выбранное окно.
    Объёмная задача, отложена на самый конец: системные API для списка окон
    (macOS `CGWindowListCopyWindowInfo`, Windows `EnumWindows`), вставка текста
    (симуляция нажатий клавиш / буфер обмена + Ctrl/Cmd+V / Accessibility API).

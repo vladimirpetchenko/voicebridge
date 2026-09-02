@@ -90,6 +90,9 @@
 { "type": "command", "id": "20", "name": "unhide_project", "worktree": "/path/to/project" }
 { "type": "command", "id": "21", "name": "get_git_changes", "sessionId": "ses_…" }
 { "type": "command", "id": "22", "name": "get_git_diff", "sessionId": "ses_…", "path": "src/foo.rs" }
+{ "type": "command", "id": "23", "name": "get_git_commits", "sessionId": "ses_…" }
+{ "type": "command", "id": "24", "name": "get_git_commit", "sessionId": "ses_…", "hash": "abc1234" }
+{ "type": "command", "id": "25", "name": "get_git_branches", "sessionId": "ses_…" }
 ```
 
 - `list_sessions` → массив `OpenCodeInstance` (инстансы с `port` и `sessions`,
@@ -107,6 +110,12 @@
   выбранная сессия).
 - `get_git_diff` — unified diff конкретного файла (`path`) проекта сессии:
   объект `GitDiff` (`path/status/tooLarge/diff`).
+- `get_git_commits` — история коммитов проекта сессии: массив `GitCommit`
+  (`hash/author/date/message`); `sessionId` необязателен.
+- `get_git_commit` — детали коммита (`hash`): объект `GitCommitDetail`
+  (`hash/author/date/message/files/diff/tooLarge`).
+- `get_git_branches` — список локальных веток проекта сессии: массив `GitBranch`
+  (`name/current`); `sessionId` необязателен.
 - `select_session` — обязателен `sessionId`; `port`/`instanceId`/`title`/`model`
   берутся из данных `list_sessions`.
 - `send_prompt` — без `sessionId` шлёт в выбранную сессию; с `sessionId` — в неё.
@@ -216,7 +225,9 @@ curl -i -H "Connection: Upgrade" -H "Upgrade: websocket" \
     `chat_screen.dart` (чат: markdown, стрим, инструменты, разрешения/вопросы —
     в «доке» над полем ввода, как на десктопе, строка токенов/стоимости,
     кнопка «Стоп»),
-    `git_screen.dart` (изменения проекта, сгруппированные по папкам).
+    `git_screen.dart` (изменения проекта по папкам + вкладки «История» —
+    список коммитов, отдельный экран коммита с файлами и диффом — и «Ветки» —
+    список локальных веток с пометкой текущей).
   - `widgets/` — `markdown_text.dart` (markdown с подсветкой кода),
     `voicebridge_logo.dart` (лого-«волна», как на иконке).
 - Брендинг: иконка (та же «волна», что у десктопа), лого в шапке, шрифт Fira
