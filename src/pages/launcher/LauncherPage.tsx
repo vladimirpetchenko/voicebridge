@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { confirm, open } from "@tauri-apps/plugin-dialog";
+import { getVersion } from "@tauri-apps/api/app";
+import { open } from "@tauri-apps/plugin-dialog";
 import { Download, Mic, MicVocal, Settings } from "lucide-react";
-import { prettifyModel } from "../../shared/lib/format";
 import { ProjectsPanel } from "./ProjectsPanel";
+import { ConfirmDialog } from "../../shared/ui/ConfirmDialog";
 import type {
   AppState,
   DownloadProgress,
@@ -63,11 +64,24 @@ export default function LauncherPage() {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [updateVersion, setUpdateVersion] = useState<string | null>(null);
   const [updateInstalling, setUpdateInstalling] = useState(false);
+  const [appVersion, setAppVersion] = useState("");
+  const [confirmState, setConfirmState] = useState<{
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    cancelLabel?: string;
+    danger?: boolean;
+    onConfirm: () => void;
+  } | null>(null);
 
   useEffect(() => {
     invoke<AppState>("get_app_state")
       .then(setState)
       .catch((e) => setError(String(e)));
+
+    getVersion()
+      .then(setAppVersion)
+      .catch(() => {});
 
     invoke<string[]>("list_microphones")
       .then(setMicrophones)
@@ -251,18 +265,22 @@ export default function LauncherPage() {
   }, []);
 
   const deleteSession = useCallback(
-    async (sessionId: string) => {
-      const ok = await confirm("Удалить сессию? Это действие необратимо.", {
+    (sessionId: string) => {
+      setConfirmState({
         title: "Удаление сессии",
-        kind: "warning",
+        message: "Удалить сессию? Это действие необратимо — история сообщений будет удалена.",
+        confirmLabel: "Удалить",
+        danger: true,
+        onConfirm: () => {
+          setConfirmState(null);
+          invoke<AppState>("delete_session", { sessionId })
+            .then(() => {
+              refreshInstances();
+              refreshProjects();
+            })
+            .catch((e) => setError(String(e)));
+        },
       });
-      if (!ok) return;
-      invoke<AppState>("delete_session", { sessionId })
-        .then(() => {
-          refreshInstances();
-          refreshProjects();
-        })
-        .catch((e) => setError(String(e)));
     },
     [refreshInstances, refreshProjects],
   );
@@ -301,10 +319,19 @@ export default function LauncherPage() {
 
   const hideProject = useCallback(
     (worktree: string) => {
-      invoke("hide_project", { worktree }).catch((e) => setError(String(e)));
-      refreshInstances();
+      const name = projects.find((p) => p.worktree === worktree)?.name ?? worktree;
+      setConfirmState({
+        title: "Скрыть проект",
+        message: `Проект «${name}» будет скрыт из списка. Папка не удаляется — вернуть можно из раздела «Скрытые проекты».`,
+        confirmLabel: "Скрыть",
+        onConfirm: () => {
+          setConfirmState(null);
+          invoke("hide_project", { worktree }).catch((e) => setError(String(e)));
+          refreshInstances();
+        },
+      });
     },
-    [refreshInstances],
+    [projects, refreshInstances],
   );
 
   const unhideProject = useCallback((worktree: string) => {
@@ -404,22 +431,21 @@ export default function LauncherPage() {
     }
   }, []);
 
-  const installUpdate = useCallback(async () => {
+  const installUpdate = useCallback(() => {
     if (!updateVersion) return;
-    const ok = await confirm(
-      `Доступна новая версия ${updateVersion}. Обновить сейчас? Приложение перезапустится.`,
-      {
-        title: "Доступно обновление",
-        kind: "info",
-        okLabel: "Обновить",
-        cancelLabel: "Позже",
+    setConfirmState({
+      title: "Доступно обновление",
+      message: `Доступна новая версия ${updateVersion}. Обновить сейчас? Приложение перезапустится.`,
+      confirmLabel: "Обновить",
+      cancelLabel: "Позже",
+      onConfirm: () => {
+        setConfirmState(null);
+        setUpdateInstalling(true);
+        invoke("install_update").catch((e) => {
+          setUpdateInstalling(false);
+          setError(String(e));
+        });
       },
-    );
-    if (!ok) return;
-    setUpdateInstalling(true);
-    invoke("install_update").catch((e) => {
-      setUpdateInstalling(false);
-      setError(String(e));
     });
   }, [updateVersion]);
 
@@ -575,21 +601,17 @@ export default function LauncherPage() {
           className="target-hint"
           title={
             state.selectedSession
-              ? state.opencodeModel
-                ? `Модель: ${state.opencodeModel}`
-                : `Сессия: ${state.selectedSession.title}`
+              ? `Сессия: ${state.selectedSession.title}`
               : state.activeInstance
                 ? `Экземпляр: ${state.activeInstance.name}`
-                : "Чат не выбран"
+                : `VoiceBridge v${appVersion}`
           }
         >
           {state.selectedSession
-            ? state.opencodeModel
-              ? prettifyModel(state.opencodeModel)
-              : state.selectedSession.title
+            ? state.selectedSession.title
             : state.activeInstance
               ? state.activeInstance.name
-              : "чат не выбран"}
+              : `v${appVersion}`}
         </span>
       </footer>
 
@@ -636,6 +658,17 @@ export default function LauncherPage() {
           {error}
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmState !== null}
+        title={confirmState?.title ?? ""}
+        message={confirmState?.message ?? ""}
+        confirmLabel={confirmState?.confirmLabel}
+        cancelLabel={confirmState?.cancelLabel}
+        danger={confirmState?.danger}
+        onConfirm={confirmState?.onConfirm ?? (() => {})}
+        onCancel={() => setConfirmState(null)}
+      />
     </main>
   );
 }

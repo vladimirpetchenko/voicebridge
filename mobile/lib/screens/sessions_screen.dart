@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../app_state.dart';
 import '../models.dart';
-import '../theme.dart';
+import '../widgets/confirm_dialog.dart';
 import '../widgets/project_card.dart';
 import '../widgets/voicebridge_logo.dart';
 import 'chat_screen.dart';
@@ -60,25 +60,29 @@ class SessionsScreen extends StatelessWidget {
   }
 
   Future<void> _deleteSession(BuildContext context, OpenCodeSession session) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Удаление сессии'),
-        content: const Text('Удалить сессию? Это действие необратимо.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Отмена'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Удалить', style: TextStyle(color: AppTheme.danger)),
-          ),
-        ],
-      ),
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Удаление сессии',
+      message: 'Удалить сессию? Это действие необратимо — история сообщений будет удалена.',
+      confirmLabel: 'Удалить',
+      danger: true,
     );
-    if (ok == true && context.mounted) {
+    if (ok && context.mounted) {
       await context.read<AppController>().deleteSession(session.id);
+    }
+  }
+
+  Future<void> _hideProject(
+      BuildContext context, String worktree, String name) async {
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Скрыть проект',
+      message:
+          'Проект «$name» будет скрыт из списка. Папка не удаляется — вернуть можно из раздела «Скрытые проекты».',
+      confirmLabel: 'Скрыть',
+    );
+    if (ok && context.mounted) {
+      await context.read<AppController>().hideProject(worktree);
     }
   }
 
@@ -153,9 +157,7 @@ class SessionsScreen extends StatelessWidget {
                     .read<AppController>()
                     .stopProject(project.worktree),
                 onCreateSession: () => _createAndOpen(context, project),
-                onHide: () => context
-                    .read<AppController>()
-                    .hideProject(project.worktree),
+                onHide: () => _hideProject(context, project.worktree, project.name),
                 onOpenSession: (session) {
                   final instance = instanceByPort[project.port];
                   if (instance != null) {
@@ -188,7 +190,11 @@ class SessionsScreen extends StatelessWidget {
                     await Navigator.of(context)
                         .push(MaterialPageRoute(builder: (_) => const ChatScreen()));
                   },
-                  onHide: () => context.read<AppController>().hideProject(inst.id),
+                  onHide: () => _hideProject(
+                    context,
+                    inst.id,
+                    inst.name.isEmpty ? 'сервер' : inst.name,
+                  ),
                   onOpenSession: (session) => _open(context, inst, session),
                   onDeleteSession: (session) => _deleteSession(context, session),
                 ),

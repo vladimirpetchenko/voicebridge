@@ -382,3 +382,110 @@ body {
 .link:hover {
   text-decoration: underline;
 }
+
+/* Общий диалог подтверждения */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 6, 10, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: grid;
+  place-items: center;
+  z-index: 60;
+  padding: 16px;
+  animation: confirm-fade-in 0.18s var(--ease);
+}
+
+.confirm-dialog {
+  width: 100%;
+  max-width: 400px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent),
+    var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-xl);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: var(--shadow-md);
+  animation: confirm-scale-in 0.2s var(--ease);
+}
+
+.confirm-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-md);
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.confirm-icon.danger {
+  background: rgba(248, 113, 113, 0.14);
+  color: var(--danger);
+}
+
+.confirm-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.confirm-message {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.btn.confirm-danger {
+  color: #fff;
+  background: var(--danger);
+  border-color: transparent;
+}
+
+.btn.confirm-danger:hover {
+  border-color: transparent;
+  box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.35),
+    0 0 20px rgba(248, 113, 113, 0.2);
+}
+
+.btn.confirm-primary {
+  color: #041018;
+  background: var(--accent);
+  border-color: transparent;
+  font-weight: 600;
+}
+
+.btn.confirm-primary:hover {
+  border-color: transparent;
+  box-shadow: var(--shadow-glow);
+}
+
+@keyframes confirm-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes confirm-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}

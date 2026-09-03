@@ -9,7 +9,7 @@ import ChatInput from "../../features/chat-input/ChatInput";
 import { GitPanel, type GitTab } from "../../features/git/GitPanel";
 import { MessagePanel } from "../../features/messages/MessagePanel";
 import { useIsWide } from "../../shared/lib/hooks";
-import { formatCost, formatDuration, formatTokens } from "../../shared/lib/format";
+import { formatCost, formatDuration, formatTokens, prettifyModel } from "../../shared/lib/format";
 import { playReceive, playSend } from "../../shared/lib/sounds";
 import type {
   ConversationMessage,
@@ -678,6 +678,14 @@ export default function ChatPage() {
           <footer className="chat-status-bar">
             {usage && (
               <>
+                {usage.model && (
+                  <>
+                    <span className="status-metric" title={`Модель: ${usage.model}`}>
+                      {prettifyModel(usage.model)}
+                    </span>
+                    <span className="status-sep">·</span>
+                  </>
+                )}
                 <span
                   className="status-metric"
                   title={`Ввод ${formatTokens(usage.tokensInput)} · вывод ${formatTokens(usage.tokensOutput)} · reasoning ${formatTokens(usage.tokensReasoning)}`}
@@ -685,9 +693,7 @@ export default function ChatPage() {
                   {formatTokens(usage.tokensTotal)} токенов
                 </span>
                 <span className="status-sep">·</span>
-                <span className="status-metric" title={`Модель: ${usage.model}`}>
-                  {formatCost(usage.cost)}
-                </span>
+                <span className="status-metric">{formatCost(usage.cost)}</span>
               </>
             )}
           </footer>
