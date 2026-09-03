@@ -597,21 +597,8 @@ export default function LauncherPage() {
         >
           <Mic size={13} /> {state.selectedMicrophone ?? "По умолчанию"}
         </button>
-        <span
-          className="target-hint"
-          title={
-            state.selectedSession
-              ? `Сессия: ${state.selectedSession.title}`
-              : state.activeInstance
-                ? `Экземпляр: ${state.activeInstance.name}`
-                : `VoiceBridge v${appVersion}`
-          }
-        >
-          {state.selectedSession
-            ? state.selectedSession.title
-            : state.activeInstance
-              ? state.activeInstance.name
-              : `v${appVersion}`}
+        <span className="target-hint" title={`VoiceBridge v${appVersion}`}>
+          v{appVersion}
         </span>
       </footer>
 
@@ -648,6 +635,7 @@ export default function LauncherPage() {
           updateStatus={updateStatus}
           updateChecking={updateChecking}
           onCheckUpdate={checkUpdate}
+          appVersion={appVersion}
         />
       )}
 

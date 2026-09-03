@@ -54,6 +54,7 @@ export interface SettingsOverlayProps {
   updateStatus: string | null;
   updateChecking: boolean;
   onCheckUpdate: () => void;
+  appVersion: string;
 }
 
 /// Модальное окно настроек (вкладки).
@@ -90,6 +91,7 @@ export function SettingsOverlay(props: SettingsOverlayProps) {
     updateStatus,
     updateChecking,
     onCheckUpdate,
+    appVersion,
   } = props;
 
   return (
@@ -363,7 +365,9 @@ export function SettingsOverlay(props: SettingsOverlayProps) {
           <div className="settings-content">
             <p>VoiceBridge — голосовой ассистент для разработчиков.</p>
             <p>Локальное распознавание речи (whisper.cpp), управление OpenCode.</p>
-            <p className="about-version">Версия 0.1.0 · Rust + Tauri · React</p>
+            <p className="about-version">
+              Версия {appVersion || "—"} · Rust + Tauri · React
+            </p>
             <p>
               <a
                 className="link"
