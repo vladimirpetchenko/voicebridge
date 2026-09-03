@@ -415,39 +415,46 @@ export default function LauncherPage() {
       .catch(() => {});
   }, []);
 
+  const installUpdate = useCallback(
+    (version?: string) => {
+      const v = version ?? updateVersion;
+      if (!v) return;
+      setConfirmState({
+        title: "Доступно обновление",
+        message: `Доступна новая версия ${v}. Обновить сейчас? Приложение перезапустится.`,
+        confirmLabel: "Обновить",
+        cancelLabel: "Позже",
+        onConfirm: () => {
+          setConfirmState(null);
+          setUpdateInstalling(true);
+          invoke("install_update").catch((e) => {
+            setUpdateInstalling(false);
+            setError(String(e));
+          });
+        },
+      });
+    },
+    [updateVersion],
+  );
+
   const checkUpdate = useCallback(async () => {
     setUpdateChecking(true);
     setUpdateStatus("Проверяю обновления…");
     try {
       const version = await invoke<string | null>("check_update");
       setUpdateVersion(version);
-      setUpdateStatus(
-        version ? `Доступна новая версия: ${version}` : "У вас последняя версия",
-      );
+      if (version) {
+        setUpdateStatus(`Доступна новая версия: ${version}`);
+        installUpdate(version);
+      } else {
+        setUpdateStatus("У вас последняя версия");
+      }
     } catch (e) {
       setUpdateStatus(`Не удалось проверить обновления: ${String(e)}`);
     } finally {
       setUpdateChecking(false);
     }
-  }, []);
-
-  const installUpdate = useCallback(() => {
-    if (!updateVersion) return;
-    setConfirmState({
-      title: "Доступно обновление",
-      message: `Доступна новая версия ${updateVersion}. Обновить сейчас? Приложение перезапустится.`,
-      confirmLabel: "Обновить",
-      cancelLabel: "Позже",
-      onConfirm: () => {
-        setConfirmState(null);
-        setUpdateInstalling(true);
-        invoke("install_update").catch((e) => {
-          setUpdateInstalling(false);
-          setError(String(e));
-        });
-      },
-    });
-  }, [updateVersion]);
+  }, [installUpdate]);
 
   const refreshMicrophones = useCallback(() => {
     invoke<string[]>("list_microphones")
@@ -524,7 +531,7 @@ export default function LauncherPage() {
           {updateVersion && (
             <button
               className="update-badge"
-              onClick={installUpdate}
+              onClick={() => installUpdate()}
               disabled={updateInstalling}
               title={`Доступна новая версия ${updateVersion}`}
             >
