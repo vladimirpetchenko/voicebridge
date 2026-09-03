@@ -76,7 +76,7 @@ whisper-rs: `LIBCLANG_PATH` на `<LLVM>\bin`). Первая сборка ком
   `get_conversation`, `get_session_info`, `get_session_usage`,
   `abort_session`, `close_response_window`,
   `list_open_session_ids`, `reply_permission`, `reply_question`,
-  `reject_question`, `get_opencode_binary`, `check_update`,
+  `reject_question`, `get_opencode_binary`, `check_update`, `install_update`,
   `get_mobile_info`, `set_mobile_enabled`, `regenerate_mobile_token`,
   `get_git_changes`, `get_git_diff`, `get_git_commits`, `get_git_commit`,
   `get_git_branches`,

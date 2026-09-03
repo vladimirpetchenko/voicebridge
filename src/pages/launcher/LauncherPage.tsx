@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { confirm, open } from "@tauri-apps/plugin-dialog";
-import { Mic, MicVocal, Settings } from "lucide-react";
+import { Download, Mic, MicVocal, Settings } from "lucide-react";
 import { prettifyModel } from "../../shared/lib/format";
 import { ProjectsPanel } from "./ProjectsPanel";
 import type {
@@ -61,6 +61,8 @@ export default function LauncherPage() {
   const [mobileInfo, setMobileInfo] = useState<MobileInfo | null>(null);
   const [devices, setDevices] = useState<KnownDevice[]>([]);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const [updateVersion, setUpdateVersion] = useState<string | null>(null);
+  const [updateInstalling, setUpdateInstalling] = useState(false);
 
   useEffect(() => {
     invoke<AppState>("get_app_state")
@@ -169,6 +171,13 @@ export default function LauncherPage() {
     const t = setTimeout(() => setNotice(null), 3000);
     return () => clearTimeout(t);
   }, [notice]);
+
+  // Проверяем наличие обновления при старте — если есть, показываем кнопку.
+  useEffect(() => {
+    invoke<string | null>("check_update")
+      .then(setUpdateVersion)
+      .catch(() => {});
+  }, []);
 
   // Синхронизируем черновик горячей клавиши с актуальным значением.
   useEffect(() => {
@@ -384,6 +393,7 @@ export default function LauncherPage() {
     setUpdateStatus("Проверяю обновления…");
     try {
       const version = await invoke<string | null>("check_update");
+      setUpdateVersion(version);
       setUpdateStatus(
         version ? `Доступна новая версия: ${version}` : "У вас последняя версия",
       );
@@ -393,6 +403,25 @@ export default function LauncherPage() {
       setUpdateChecking(false);
     }
   }, []);
+
+  const installUpdate = useCallback(async () => {
+    if (!updateVersion) return;
+    const ok = await confirm(
+      `Доступна новая версия ${updateVersion}. Обновить сейчас? Приложение перезапустится.`,
+      {
+        title: "Доступно обновление",
+        kind: "info",
+        okLabel: "Обновить",
+        cancelLabel: "Позже",
+      },
+    );
+    if (!ok) return;
+    setUpdateInstalling(true);
+    invoke("install_update").catch((e) => {
+      setUpdateInstalling(false);
+      setError(String(e));
+    });
+  }, [updateVersion]);
 
   const refreshMicrophones = useCallback(() => {
     invoke<string[]>("list_microphones")
@@ -466,6 +495,21 @@ export default function LauncherPage() {
           <h1>VoiceBridge</h1>
         </div>
         <div className="header-actions">
+          {updateVersion && (
+            <button
+              className="update-badge"
+              onClick={installUpdate}
+              disabled={updateInstalling}
+              title={`Доступна новая версия ${updateVersion}`}
+            >
+              {updateInstalling ? (
+                <Download className="spinner" size={14} />
+              ) : (
+                <Download size={14} />
+              )}
+              {updateInstalling ? "Обновление…" : `Обновить ${updateVersion}`}
+            </button>
+          )}
           <button
             className="model-badge"
             title="Выбранная модель — нажмите для настройки"

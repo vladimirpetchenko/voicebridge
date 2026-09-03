@@ -53,6 +53,7 @@ pub fn run() {
 
             handle.manage(state::SharedState::default());
             handle.manage(state::ConversationStore::default());
+            handle.manage(state::PendingUpdate::default());
             handle.manage(modules::audio::AudioEngine::default());
             handle.manage(modules::stt::spawn(handle.clone()));
             handle.manage(modules::mobile::MobileServer::default());
@@ -164,6 +165,7 @@ pub fn run() {
             commands::close_response_window,
             commands::list_open_session_ids,
             commands::check_update,
+            commands::install_update,
             commands::get_mobile_info,
             commands::set_mobile_enabled,
             commands::regenerate_mobile_token,

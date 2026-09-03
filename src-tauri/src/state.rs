@@ -138,6 +138,16 @@ impl Default for SharedState {
     }
 }
 
+/// Ожидающее обновление приложения: найденная через `check_update` версия,
+/// готовая к установке по команде `install_update`.
+pub struct PendingUpdate(pub Mutex<Option<tauri_plugin_updater::Update>>);
+
+impl Default for PendingUpdate {
+    fn default() -> Self {
+        Self(Mutex::new(None))
+    }
+}
+
 /// Сообщение диалога сессии OpenCode (запрос пользователя или ответ ассистента).
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]

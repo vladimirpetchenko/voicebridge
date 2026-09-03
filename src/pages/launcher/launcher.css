@@ -802,6 +802,54 @@ input[type="range"] {
   box-shadow: var(--shadow-glow);
 }
 
+.update-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  background: rgba(52, 211, 153, 0.14);
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  animation: update-badge-in 0.2s var(--ease);
+  transition: background 0.15s var(--ease), transform 0.15s var(--ease);
+}
+
+.update-badge:hover {
+  background: rgba(52, 211, 153, 0.22);
+  transform: translateY(-1px);
+}
+
+.update-badge:disabled {
+  opacity: 0.75;
+  cursor: default;
+  transform: none;
+}
+
+.update-badge .spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes update-badge-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .model-dot {
   width: 8px;
   height: 8px;
