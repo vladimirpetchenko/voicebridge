@@ -68,6 +68,11 @@ git tag v0.1.4 && git push --tags
 Артефакты появляются во вкладке Actions; по тегу `v*` автоматически прикрепляются
 к GitHub Release.
 
+Имена релизных артефактов (версия из тега):
+- Windows → `VoiceBridge_<version>_x64-setup.exe`
+- macOS → `VoiceBridge_<version>_aarch64.dmg`
+- Android → `voicebridge-<version>.apk` (CI переименовывает `app-release.apk`)
+
 ## Полезные команды (фронтенд / бэкенд отдельно)
 
 ```bash
