@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+# Защита от случайного коммита секретов: gitleaks сканирует staged-изменения.
+# При найденном секрете коммит блокируется.
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks git --pre-commit --staged --no-banner
+else
+  echo "⚠️  gitleaks не найден — проверка секретов пропущена."
+  echo "    Установи: brew install gitleaks"
+fi
