@@ -142,6 +142,7 @@ src-tauri/              бэкенд (Rust)
   src/modules/mobile.rs  мобильный доступ (WebSocket-сервер)
 scripts/gen_icon.py     генерация иконки
 scripts/build-desktop.sh   сборка установщика десктопа (текущая ОС)
+scripts/build-macos.sh     сборка установщика macOS (.dmg)
 scripts/build-android.sh   сборка Android APK (release)
 ```
 

@@ -70,6 +70,7 @@ src-tauri/src/              бэкенд
 src-tauri/examples/         whisper_check, opencode_check, projects_check
 scripts/gen_icon.py         генерация иконки
 scripts/build-desktop.sh    сборка установщика десктопа (текущая ОС)
+scripts/build-macos.sh      сборка установщика macOS (.dmg)
 scripts/build-android.sh    сборка Android APK (release)
 ```
 
