@@ -208,11 +208,12 @@ Git, отдельный экран коммита). Обнаружение/
 `src-tauri/voicebridge-signing.key` (gitignored); в CI передаётся через
 `TAURI_SIGNING_PRIVATE_KEY`.
 
-Не сделано (автообновление): Windows готов (createUpdaterArtifacts включён,
-CI генерирует `latest.json` скриптом `scripts/gen_updater_json.py` и публикует
-в релиз). Осталось: добавить секрет `TAURI_SIGNING_PRIVATE_KEY` в репозиторий,
-подпись/нотаризация `.app` под macOS (иначе Gatekeeper блокирует обновление —
-в `latest.json` публикуется только `windows-x86_64`) и end-to-end проверка.
+Не сделано (автообновление): Windows готов end-to-end — `createUpdaterArtifacts`
+включён, CI генерирует `latest.json` (`scripts/gen_updater_json.py`) и публикует
+в релиз, в лаунчере авто-проверка при старте + зелёная кнопка + конфирм +
+`install_update` (репозиторий публичный). Осталось опционально: подпись/нотаризация
+`.app` под macOS (иначе Gatekeeper блокирует обновление — в `latest.json`
+публикуется только `windows-x86_64`) и Code Signing для Windows.
 
 Мобильное приложение (Flutter, управление десктопом по LAN через WebSocket) —
 спроектировано и расписано в `docs/MOBILE.md` (ветка `feature/mobile-app`).
@@ -277,15 +278,27 @@ APK (Flutter, job `android` на `ubuntu-latest`, debug-подпись) по т�
   позиция не трогается. Кнопка «К последнему сообщению» (`ArrowDown` на
   десктопе, `Icons.arrow_downward_rounded` в мобилке), когда не внизу.
 - ✅ **Управление сессиями** (десктоп + мобилка) — удаление сессии из лаунчера
-  (`DELETE /session/{id}`, подтверждение через `confirm`/диалог; закрывает окно
+  (`DELETE /session/{id}`, подтверждение через общий диалог; закрывает окно
   чата, чистит `ConversationStore` и сбрасывает выбор) и автоназвание: если
   сессия была пустой, после первого сообщения подставляется имя из первых 60
   символов запроса (`PATCH /session/{id}`). Команды `delete_session` (Tauri +
   WS `delete_session`), функции `opencode::delete_session`/`update_session_title`.
+- ✅ **Автообновление (Windows)** — ключ перегенерирован без пароля,
+  `createUpdaterArtifacts: true`, CI публикует `latest.json` в релиз
+  (`scripts/gen_updater_json.py`, репозиторий публичный). Авто-проверка при
+  старте лаунчера + зелёная кнопка «Обновить X» + конфирм + `install_update`
+  (скачивание/установка/перезапуск). `check_update` сохраняет найденный `Update`
+  в `PendingUpdate`. Кнопка «Проверить обновления» в настройках тоже предлагает
+  установить апдейт.
+- ✅ **Полировка UI** — общий `ConfirmDialog` (десктоп) / `showConfirmDialog`
+  (мобилка) для скрытия проекта, удаления сессии и установки обновления;
+  версия приложения (из `getVersion()`) в футере лаунчера и в «О программе»;
+  модель показывается в строке состояния чата. Версия в имени APK-артефакта
+  (`voicebridge-<version>.apk`).
 
 Далее:
 
-1. **Автообновление (доделать)** — Windows готов (ключ перегенерирован без
-   пароля, `createUpdaterArtifacts: true`, CI публикует `latest.json`). Осталось:
-   добавить секрет `TAURI_SIGNING_PRIVATE_KEY` в репозиторий, подпись/нотаризация
-   `.app` (macOS) и проверка обновления end-to-end.
+1. **Автообновление (macOS)** — подпись Developer ID + нотаризация `.app`
+   (иначе Gatekeeper блокирует обновление; в `latest.json` только
+   `windows-x86_64`). Опционально — Code Signing для Windows (без него —
+   предупреждение SmartScreen).
