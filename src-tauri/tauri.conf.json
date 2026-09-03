@@ -29,6 +29,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "category": "DeveloperTool",
     "shortDescription": "Голосовой ассистент для разработчиков",
     "macOS": {
@@ -44,7 +45,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgyNDI3RDUyOEY4NUJDQjAKUldTd3ZJV1BVbjFDZ2o3aUFoZlZ3enFZbHNqNHN2UmNETWpkVURKbFpITXMzdmFIb1dUVzh4cVQK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDhFRUI0MzhDRjAxOTI0RDQKUldUVUpCbndqRVByampwS2hOMU1KRFdSWDJKZUVJb2U3aHIwcUFaVmtGUmZJRmdabjhhbnZ3clQK",
       "endpoints": [
         "https://github.com/vladimirpetchenko/voicebridge/releases/latest/download/latest.json"
       ],

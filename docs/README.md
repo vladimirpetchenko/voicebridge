@@ -71,6 +71,7 @@ src-tauri/examples/         whisper_check, opencode_check, projects_check
 scripts/gen_icon.py         генерация иконки
 scripts/build-desktop.sh    сборка установщика десктопа (текущая ОС)
 scripts/build-android.sh    сборка Android APK (release)
+scripts/gen_updater_json.py генерация latest.json (манифест автообновления)
 ```
 
 ## Поток данных
@@ -158,14 +159,22 @@ whisper.cpp (несколько минут).
 
 - приватный — `src-tauri/voicebridge-signing.key` (в `.gitignore`, не коммитить);
 - в CI приватный ключ передаётся через env `TAURI_SIGNING_PRIVATE_KEY`
-  (секрет репозитория).
+  (секрет репозитория `TAURI_SIGNING_PRIVATE_KEY`).
 
-Генерация/подпись артефактов пока **выключена** (`bundle.createUpdaterArtifacts`
-не задан) — иначе сборка требует приватный ключ. Чтобы включить: добавить
-секрет `TAURI_SIGNING_PRIVATE_KEY` в репозиторий и задать
-`"createUpdaterArtifacts": true` в `bundle`, затем публиковать артефакты +
-`latest.json` в релиз. Также нужны подпись/нотаризация `.app` (macOS) и
-`.msi`/NSIS (Windows).
+`bundle.createUpdaterArtifacts` **включён** — сборка генерирует подписи
+`.sig`, а CI (`.github/workflows/build.yml`) собирает из них `latest.json`
+(скрипт `scripts/gen_updater_json.py`) и прикрепляет его к релизу. Endpoint
+указывает на `releases/latest/download/latest.json`.
+
+**Windows** — автообновление работает (NSIS `.exe` + `installMode: passive`).
+**macOS** — пока не готово: нужны подпись Developer ID + нотаризация `.app`,
+иначе Gatekeeper блокирует обновление (в `latest.json` публикуется только
+`windows-x86_64`).
+
+> Сборка с включённым `createUpdaterArtifacts` требует приватный ключ:
+> локально `scripts/build-desktop.sh` подставляет
+> `TAURI_SIGNING_PRIVATE_KEY_PATH`, в CI — секрет
+> `TAURI_SIGNING_PRIVATE_KEY`.
 
 ## Логи
 
@@ -230,8 +239,7 @@ whisper.cpp (несколько минут).
 
 Далее:
 
-1. **Автообновление** — довести до рабочего: включить
-   `bundle.createUpdaterArtifacts`, добавить секрет `TAURI_SIGNING_PRIVATE_KEY`
-   в CI, генерировать и публиковать `latest.json` + подписанные артефакты в
-   релиз, подписать/нотаризировать `.app` (macOS) и собрать `.msi`/NSIS
-   (Windows), проверить обновление end-to-end.
+1. **Автообновление (доделать)** — Windows готов (ключ перегенерирован без
+   пароля, `createUpdaterArtifacts: true`, CI публикует `latest.json`). Осталось:
+   добавить секрет `TAURI_SIGNING_PRIVATE_KEY` в репозиторий, подпись/нотаризация
+   `.app` (macOS) и проверка обновления end-to-end.

@@ -5,6 +5,11 @@ name: Release
 #
 # Первая сборка долгая (~20-40 мин): whisper.cpp компилируется из исходников.
 # Кэш Rust (swatinem/rust-cache) ускоряет повторные прогоны.
+#
+# Автообновление (Windows): при включённом bundle.createUpdaterArtifacts сборка
+# генерирует подпись .exe.sig; шаг "Generate updater manifest" собирает из неё
+# latest.json, который прикрепляется к релизу (endpoint в tauri.conf.json
+# указывает на releases/latest/download/latest.json).
 
 on:
   push:
@@ -20,7 +25,9 @@ jobs:
         include:
           - os: windows-latest
             name: windows
-            artifact: src-tauri/target/release/bundle/nsis/*.exe
+            artifact: |
+              src-tauri/target/release/bundle/nsis/*.exe
+              src-tauri/target/release/bundle/nsis/latest.json
           - os: macos-latest
             name: macos
             artifact: src-tauri/target/release/bundle/dmg/*.dmg
@@ -29,8 +36,8 @@ jobs:
     permissions:
       contents: write
     env:
-      # Ключ подписи артефактов обновления. Нужен, когда в tauri.conf.json
-      # включён bundle.createUpdaterArtifacts. Секрет добавляется в
+      # Ключ подписи артефактов обновления (нужен при
+      # bundle.createUpdaterArtifacts). Секрет добавляется в
       # Settings → Secrets and variables → Actions → TAURI_SIGNING_PRIVATE_KEY.
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
 
@@ -57,6 +64,16 @@ jobs:
 
       - name: Build app
         run: npm run tauri build
+
+      - name: Generate updater manifest (Windows)
+        if: matrix.name == 'windows'
+        shell: bash
+        run: |
+          python scripts/gen_updater_json.py \
+            --bundle-dir src-tauri/target/release/bundle/nsis \
+            --repo "${{ github.repository }}" \
+            --tag "${{ github.ref_name }}" \
+            --out src-tauri/target/release/bundle/nsis/latest.json
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

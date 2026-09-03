@@ -205,10 +205,11 @@ OpenCode выбранной сессии (`opencode_model` из `/session`). Г�
 `src-tauri/voicebridge-signing.key` (gitignored); в CI передаётся через
 `TAURI_SIGNING_PRIVATE_KEY`.
 
-Не сделано: автообновления подключены частично: `createUpdaterArtifacts`
-выключен (иначе сборка требует ключ), не хватает секрета `TAURI_SIGNING_PRIVATE_KEY`
-в CI, подписи/нотаризации `.app` под macOS, сборки `.msi`/NSIS под Windows и
-публикации артефактов + манифеста `latest.json` в релиз.
+Не сделано (автообновление): Windows готов (createUpdaterArtifacts включён,
+CI генерирует `latest.json` скриптом `scripts/gen_updater_json.py` и публикует
+в релиз). Осталось: добавить секрет `TAURI_SIGNING_PRIVATE_KEY` в репозиторий,
+подпись/нотаризация `.app` под macOS (иначе Gatekeeper блокирует обновление —
+в `latest.json` публикуется только `windows-x86_64`) и end-to-end проверка.
 
 Мобильное приложение (Flutter, управление десктопом по LAN через WebSocket) —
 спроектировано и расписано в `docs/MOBILE.md` (ветка `feature/mobile-app`).
@@ -281,8 +282,7 @@ APK (Flutter, job `android` на `ubuntu-latest`, debug-подпись) по т�
 
 Далее:
 
-1. **Автообновление** — довести до рабочего: включить
-   `bundle.createUpdaterArtifacts`, добавить секрет `TAURI_SIGNING_PRIVATE_KEY`
-   в CI, генерировать и публиковать `latest.json` + подписанные артефакты в
-   релиз, подписать/нотаризировать `.app` (macOS) и собрать `.msi`/NSIS
-   (Windows), проверить обновление end-to-end.
+1. **Автообновление (доделать)** — Windows готов (ключ перегенерирован без
+   пароля, `createUpdaterArtifacts: true`, CI публикует `latest.json`). Осталось:
+   добавить секрет `TAURI_SIGNING_PRIVATE_KEY` в репозиторий, подпись/нотаризация
+   `.app` (macOS) и проверка обновления end-to-end.

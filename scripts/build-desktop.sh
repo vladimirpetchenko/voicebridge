@@ -7,4 +7,11 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+
+# Ключ подписи артефактов обновления (нужен при bundle.createUpdaterArtifacts).
+# Если локальный ключ есть — подставляем путь автоматически.
+if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ] && [ -f src-tauri/voicebridge-signing.key ]; then
+  export TAURI_SIGNING_PRIVATE_KEY_PATH="$PWD/src-tauri/voicebridge-signing.key"
+fi
+
 npm run tauri build

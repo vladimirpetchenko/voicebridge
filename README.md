@@ -143,6 +143,7 @@ src-tauri/              бэкенд (Rust)
 scripts/gen_icon.py     генерация иконки
 scripts/build-desktop.sh   сборка установщика десктопа (текущая ОС)
 scripts/build-android.sh   сборка Android APK (release)
+scripts/gen_updater_json.py  генерация latest.json (манифест автообновления)
 ```
 
 ## Планы
