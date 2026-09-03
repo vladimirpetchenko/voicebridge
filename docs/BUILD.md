@@ -29,7 +29,6 @@ cd mobile && flutter run # мобилка (нужен эмулятор/устр�
 
 ```bash
 npm run tauri build               # или: scripts/build-desktop.sh
-scripts/build-macos.sh            # явно под macOS (.dmg)
 ```
 
 Результат:
