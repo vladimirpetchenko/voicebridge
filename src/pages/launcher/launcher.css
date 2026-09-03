@@ -802,45 +802,47 @@ input[type="range"] {
   box-shadow: var(--shadow-glow);
 }
 
-.update-badge {
+.update-hint {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
+  gap: 5px;
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 4px 10px;
   border-radius: var(--r-pill);
-  border: 1px solid rgba(52, 211, 153, 0.4);
-  background: rgba(52, 211, 153, 0.14);
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  background: rgba(52, 211, 153, 0.12);
   color: var(--success);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  animation: update-badge-in 0.2s var(--ease);
   transition: background 0.15s var(--ease), transform 0.15s var(--ease);
+  animation: update-pulse 2.4s var(--ease) infinite;
 }
 
-.update-badge:hover {
+.update-hint:hover {
   background: rgba(52, 211, 153, 0.22);
   transform: translateY(-1px);
 }
 
-.update-badge:disabled {
+.update-hint:disabled {
   opacity: 0.75;
   cursor: default;
   transform: none;
+  animation: none;
 }
 
-.update-badge .spinner {
+.update-hint .spinner {
   animation: spin 1s linear infinite;
 }
 
-@keyframes update-badge-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
+@keyframes update-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.4);
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+  50% {
+    box-shadow: 0 0 0 6px rgba(52, 211, 153, 0);
   }
 }
 

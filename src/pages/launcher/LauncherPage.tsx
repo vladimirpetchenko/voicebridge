@@ -528,21 +528,6 @@ export default function LauncherPage() {
           <h1>VoiceBridge</h1>
         </div>
         <div className="header-actions">
-          {updateVersion && (
-            <button
-              className="update-badge"
-              onClick={() => installUpdate()}
-              disabled={updateInstalling}
-              title={`Доступна новая версия ${updateVersion}`}
-            >
-              {updateInstalling ? (
-                <Download className="spinner" size={14} />
-              ) : (
-                <Download size={14} />
-              )}
-              {updateInstalling ? "Обновление…" : `Обновить ${updateVersion}`}
-            </button>
-          )}
           <button
             className="model-badge"
             title="Выбранная модель — нажмите для настройки"
@@ -604,9 +589,25 @@ export default function LauncherPage() {
         >
           <Mic size={13} /> {state.selectedMicrophone ?? "По умолчанию"}
         </button>
-        <span className="target-hint" title={`VoiceBridge v${appVersion}`}>
-          v{appVersion}
-        </span>
+        {updateVersion ? (
+          <button
+            className="update-hint"
+            onClick={() => installUpdate()}
+            disabled={updateInstalling}
+            title={`Доступна новая версия ${updateVersion} — нажмите, чтобы обновить`}
+          >
+            {updateInstalling ? (
+              <Download className="spinner" size={12} />
+            ) : (
+              <Download size={12} />
+            )}
+            {updateInstalling ? "…" : updateVersion}
+          </button>
+        ) : (
+          <span className="target-hint" title={`VoiceBridge v${appVersion}`}>
+            v{appVersion}
+          </span>
+        )}
       </footer>
 
       {showSettings && (
