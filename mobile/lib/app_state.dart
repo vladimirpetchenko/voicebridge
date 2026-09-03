@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:device_info_plus/device_info_plus.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import 'models.dart';
 import 'settings_store.dart';
@@ -11,7 +11,7 @@ enum ConnStatus { disconnected, connecting, connected }
 
 /// Глобальное состояние приложения: соединение, сессии, выбранная сессия и
 /// содержимое чата. Подключён через `provider`.
-class AppController extends ChangeNotifier {
+class AppController extends ChangeNotifier with WidgetsBindingObserver {
   final SettingsStore settings = SettingsStore();
   final WsClient ws = WsClient();
 
@@ -49,6 +49,7 @@ class AppController extends ChangeNotifier {
 
   /// Читает сохранённые адрес/токен и, если есть, подключается.
   Future<void> init() async {
+    WidgetsBinding.instance.addObserver(this);
     final uri = await settings.getUri();
     final token = await settings.getToken();
     if (uri != null && uri.isNotEmpty && token != null && token.isNotEmpty) {
@@ -75,6 +76,7 @@ class AppController extends ChangeNotifier {
       await refreshProjects();
       await refreshHidden();
       await registerDevice();
+      await _recoverStream();
     } catch (e) {
       status = ConnStatus.disconnected;
       errorMessage = 'Не удалось подключиться: $e';
@@ -113,6 +115,38 @@ class AppController extends ChangeNotifier {
       if (uri == null || token == null) return;
       connect(uri, token);
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _recoverStream();
+    }
+  }
+
+  /// Восстанавливает стриминговый ответ, потерянный при сворачивании
+  /// приложения: в фоне события `opencode-*` не доставляются, поэтому при
+  /// возврате подтягиваем диалог из истории десктопа/OpenCode.
+  Future<void> _recoverStream() async {
+    if (!busy) return;
+    var stillProcessing = false;
+    try {
+      final data = await ws.command('get_state');
+      if (data is Map<String, dynamic>) {
+        stillProcessing = (data['status'] as String?) == 'processing';
+      }
+    } catch (_) {}
+
+    final restored = await loadConversation();
+
+    // Если восстановить историю не удалось (соединение ещё не установлено) —
+    // не трогаем индикатор; иначе показываем полный ответ и, если генерация
+    // завершилась, снимаем состояние «думает».
+    if (restored) {
+      busy = stillProcessing;
+      notifyListeners();
+      await refreshUsage();
+    }
   }
 
   void _onEvent(WsEvent event) {
@@ -384,9 +418,9 @@ class AppController extends ChangeNotifier {
     await refreshGitChanges();
   }
 
-  Future<void> loadConversation() async {
+  Future<bool> loadConversation() async {
     final id = selectedSessionId;
-    if (id == null) return;
+    if (id == null) return false;
     try {
       final args = <String, dynamic>{'sessionId': id};
       final port = selectedInstance?.port;
@@ -397,7 +431,10 @@ class AppController extends ChangeNotifier {
         ..addAll((data as List<dynamic>? ?? [])
             .map((e) => ConversationMessage.fromJson(e as Map<String, dynamic>)));
       notifyListeners();
-    } catch (_) {}
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> refreshUsage() async {
@@ -525,6 +562,7 @@ class AppController extends ChangeNotifier {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _shouldReconnect = false;
     _reconnectTimer?.cancel();
     _sub?.cancel();

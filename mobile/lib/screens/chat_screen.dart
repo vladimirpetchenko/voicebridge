@@ -17,11 +17,40 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final _inputController = TextEditingController();
+  final _scrollController = ScrollController();
+  bool _atBottom = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     _inputController.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    // В reverse-списке offset 0 — низ. Считаем «внизу», если рядом с низом.
+    final pixels = _scrollController.position.pixels;
+    final at = pixels <= 40;
+    if (at != _atBottom) {
+      setState(() => _atBottom = at);
+    }
+  }
+
+  void _scrollToBottom() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
   }
 
   void _send() {
@@ -38,6 +67,13 @@ class _ChatScreenState extends State<ChatScreen> {
         controller.selectedSessionId ??
         'Чат';
     final project = controller.selectedInstance?.name;
+
+    // Если пользователь у низа — докручиваем к последнему сообщению; если ушёл
+    // вверх читать историю — не трогаем позицию.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_atBottom || !_scrollController.hasClients) return;
+      _scrollController.jumpTo(0);
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -74,10 +110,34 @@ class _ChatScreenState extends State<ChatScreen> {
       body: Column(
         children: [
           Expanded(
-            child: ListView(
-              reverse: true,
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              children: _buildItems(controller).reversed.toList(),
+            child: Stack(
+              children: [
+                ListView(
+                  controller: _scrollController,
+                  reverse: true,
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  children: _buildItems(controller).reversed.toList(),
+                ),
+                if (!_atBottom)
+                  Positioned(
+                    right: 16,
+                    bottom: 16,
+                    child: Material(
+                      color: AppTheme.surface2,
+                      shape: const CircleBorder(
+                        side: BorderSide(color: Color(0x22FFFFFF)),
+                      ),
+                      child: IconButton(
+                        tooltip: 'К последнему сообщению',
+                        icon: const Icon(
+                          Icons.arrow_downward_rounded,
+                          color: AppTheme.textPrimary,
+                        ),
+                        onPressed: _scrollToBottom,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
           if (controller.pendingPermissions.isNotEmpty ||

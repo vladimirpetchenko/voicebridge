@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { AlertTriangle, Bot, Check, Clock, Copy, GitBranch, MessageSquare, Square, User, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, Bot, Check, Clock, Copy, GitBranch, MessageSquare, Square, User, X } from "lucide-react";
 import Markdown from "../../shared/ui/Markdown";
 import ChatInput from "../../features/chat-input/ChatInput";
 import { GitPanel, type GitTab } from "../../features/git/GitPanel";
@@ -44,6 +44,7 @@ export default function ChatPage() {
   const [usage, setUsage] = useState<SessionUsage | null>(null);
   const [busy, setBusy] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const isAtBottomRef = useRef(true);
   const busyStartRef = useRef<number | null>(null);
   const lastActivityRef = useRef(0);
   const highlightTimerRef = useRef<number | null>(null);
@@ -69,6 +70,7 @@ export default function ChatPage() {
   const [msgResizing, setMsgResizing] = useState(false);
   const [activeMsgIdx, setActiveMsgIdx] = useState<number | null>(null);
   const [highlightedIdx, setHighlightedIdx] = useState<number | null>(null);
+  const [atBottom, setAtBottom] = useState(true);
   const wide = useIsWide(760);
 
   const sessionId = useMemo(() => {
@@ -214,6 +216,26 @@ export default function ChatPage() {
     setHighlightedIdx(null);
     requestAnimationFrame(() => setHighlightedIdx(idx));
     highlightTimerRef.current = window.setTimeout(() => setHighlightedIdx(null), 1600);
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    const el = bodyRef.current;
+    if (el) {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+      isAtBottomRef.current = true;
+      setAtBottom(true);
+    }
+  }, []);
+
+  const handleBodyScroll = useCallback(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    // «Внизу» считаем с небольшим допуском, чтобы не дёргать автоскролл
+    // из-за дробных значений и округления.
+    const threshold = 40;
+    const at = el.scrollHeight - el.scrollTop - el.clientHeight <= threshold;
+    isAtBottomRef.current = at;
+    setAtBottom(at);
   }, []);
 
   useEffect(() => {
@@ -382,7 +404,9 @@ export default function ChatPage() {
   }, [sessionId, refreshUsage]);
 
   useEffect(() => {
-    bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight });
+    if (isAtBottomRef.current) {
+      bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight });
+    }
   }, [messages, tools, permissions, questions]);
 
   // Тикающий таймер выполнения ответа (останавливается по завершении).
@@ -514,80 +538,91 @@ export default function ChatPage() {
           </>
         )}
         <div className="response-view-chat">
-          <div className="response-view-body" ref={bodyRef}>
-            <ToolChips tools={tools} />
+          <div className="response-view-body-wrap">
+            <div className="response-view-body" ref={bodyRef} onScroll={handleBodyScroll}>
+              <ToolChips tools={tools} />
 
-            {messages.length === 0 ? (
-              <p className="response-empty">
-                Скажите фразу в VoiceBridge — ответ OpenCode появится здесь в реальном
-                времени, вместе с инструментами и запросами действий.
-              </p>
-            ) : (
-              messages.map((m, i) =>
-                m.role === "user" ? (
-                  <div
-                    key={i}
-                    data-msg-idx={i}
-                    className={`chat-msg user${highlightedIdx === i ? " highlight" : ""}`}
-                  >
-                    <div className="chat-avatar user">
-                      <User size={14} />
-                    </div>
-                    <div className="chat-msg-body">
-                      <div className="chat-bubble user-bubble">{m.text}</div>
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    key={i}
-                    data-msg-idx={i}
-                    className={`chat-msg assistant${highlightedIdx === i ? " highlight" : ""}`}
-                  >
-                    <div className="chat-avatar assistant">
-                      <Bot size={14} />
-                    </div>
-                    <div className="chat-msg-body">
-                      <div className="chat-bubble assistant-bubble">
-                        {m.reasoning ? (
-                          <ReasoningBlock
-                            text={m.reasoning}
-                            streaming={busy && !m.text}
-                          />
-                        ) : null}
-                        {m.text ? (
-                          <Markdown>{m.text}</Markdown>
-                        ) : !m.reasoning ? (
-                          <span className="thinking-dots" aria-label="OpenCode думает">
-                            <span />
-                            <span />
-                            <span />
-                          </span>
-                        ) : null}
+              {messages.length === 0 ? (
+                <p className="response-empty">
+                  Скажите фразу в VoiceBridge — ответ OpenCode появится здесь в реальном
+                  времени, вместе с инструментами и запросами действий.
+                </p>
+              ) : (
+                messages.map((m, i) =>
+                  m.role === "user" ? (
+                    <div
+                      key={i}
+                      data-msg-idx={i}
+                      className={`chat-msg user${highlightedIdx === i ? " highlight" : ""}`}
+                    >
+                      <div className="chat-avatar user">
+                        <User size={14} />
                       </div>
-                      <div className="chat-msg-meta">
-                        {m.text && (
-                          <button
-                            className="msg-copy-btn"
-                            onClick={() => copyMessage(m.text, i)}
-                            title="Копировать сообщение"
-                          >
-                            {copiedIdx === i ? <Check size={13} /> : <Copy size={13} />}
-                          </button>
-                        )}
-                        {(() => {
-                          const isLast = i === messages.length - 1;
-                          const dur = m.durationMs ?? (isLast && busy ? elapsed : undefined);
-                          return dur !== undefined ? (
-                            <span className="msg-duration" title="Время выполнения">
-                              <Clock size={11} /> {formatDuration(dur)}
+                      <div className="chat-msg-body">
+                        <div className="chat-bubble user-bubble">{m.text}</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      key={i}
+                      data-msg-idx={i}
+                      className={`chat-msg assistant${highlightedIdx === i ? " highlight" : ""}`}
+                    >
+                      <div className="chat-avatar assistant">
+                        <Bot size={14} />
+                      </div>
+                      <div className="chat-msg-body">
+                        <div className="chat-bubble assistant-bubble">
+                          {m.reasoning ? (
+                            <ReasoningBlock
+                              text={m.reasoning}
+                              streaming={busy && !m.text}
+                            />
+                          ) : null}
+                          {m.text ? (
+                            <Markdown>{m.text}</Markdown>
+                          ) : !m.reasoning ? (
+                            <span className="thinking-dots" aria-label="OpenCode думает">
+                              <span />
+                              <span />
+                              <span />
                             </span>
-                          ) : null;
-                        })()}
+                          ) : null}
+                        </div>
+                        <div className="chat-msg-meta">
+                          {m.text && (
+                            <button
+                              className="msg-copy-btn"
+                              onClick={() => copyMessage(m.text, i)}
+                              title="Копировать сообщение"
+                            >
+                              {copiedIdx === i ? <Check size={13} /> : <Copy size={13} />}
+                            </button>
+                          )}
+                          {(() => {
+                            const isLast = i === messages.length - 1;
+                            const dur = m.durationMs ?? (isLast && busy ? elapsed : undefined);
+                            return dur !== undefined ? (
+                              <span className="msg-duration" title="Время выполнения">
+                                <Clock size={11} /> {formatDuration(dur)}
+                              </span>
+                            ) : null;
+                          })()}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ),
-              )
+                  ),
+                )
+              )}
+            </div>
+            {!atBottom && (
+              <button
+                className="scroll-to-bottom"
+                onClick={scrollToBottom}
+                title="К последнему сообщению"
+              >
+                <ArrowDown size={16} />
+              </button>
             )}
           </div>
           {(permissions.length > 0 || questions.length > 0 || (stalled && busy)) && (
