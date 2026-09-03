@@ -118,6 +118,7 @@ class ProjectCard extends StatefulWidget {
   final VoidCallback onCreateSession;
   final VoidCallback onHide;
   final void Function(OpenCodeSession) onOpenSession;
+  final void Function(OpenCodeSession) onDeleteSession;
 
   const ProjectCard({
     super.key,
@@ -129,6 +130,7 @@ class ProjectCard extends StatefulWidget {
     required this.onCreateSession,
     required this.onHide,
     required this.onOpenSession,
+    required this.onDeleteSession,
   });
 
   @override
@@ -244,6 +246,7 @@ class _ProjectCardState extends State<ProjectCard> {
                     title: session.title.isEmpty ? session.id : session.title,
                     subtitle: widget.relTime(session.updatedAt),
                     onTap: () => widget.onOpenSession(session),
+                    onDelete: () => widget.onDeleteSession(session),
                   ),
               if (hidden > 0)
                 InkWell(
@@ -304,12 +307,14 @@ class SessionTile extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final VoidCallback? onDelete;
 
   const SessionTile({
     super.key,
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.onDelete,
   });
 
   @override
@@ -318,7 +323,7 @@ class SessionTile extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        padding: const EdgeInsets.only(left: 8, top: 6, bottom: 6),
         child: Row(
           children: [
             const Icon(Icons.chat_bubble_outline_rounded,
@@ -348,6 +353,16 @@ class SessionTile extends StatelessWidget {
                 ],
               ),
             ),
+            if (onDelete != null)
+              InkWell(
+                onTap: onDelete,
+                borderRadius: BorderRadius.circular(8),
+                child: const Padding(
+                  padding: EdgeInsets.all(6),
+                  child: Icon(Icons.delete_outline_rounded,
+                      size: 18, color: AppTheme.textDim),
+                ),
+              ),
             const Icon(Icons.chevron_right_rounded,
                 size: 20, color: AppTheme.textDim),
           ],

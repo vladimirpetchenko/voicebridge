@@ -20,6 +20,7 @@ export interface ProjectsPanelProps {
   onHideProject: (worktree: string) => void;
   onUnhideProject: (worktree: string) => void;
   onSelectSession: (inst: OpenCodeInstance, session: OpenCodeSession) => void;
+  onDeleteSession: (sessionId: string) => void;
   onToggleSessions: (id: string) => void;
 }
 
@@ -43,6 +44,7 @@ export function ProjectsPanel(props: ProjectsPanelProps) {
     onHideProject,
     onUnhideProject,
     onSelectSession,
+    onDeleteSession,
     onToggleSessions,
   } = props;
 
@@ -106,10 +108,17 @@ export function ProjectsPanel(props: ProjectsPanelProps) {
                 const active = selectedSessionId === session.id;
                 const isOpen = openSessionIds.includes(session.id);
                 return (
-                  <button
+                  <div
                     key={session.id}
                     className={`session-row ${active ? "active" : ""}`}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => inst && onSelectSession(inst, session)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        inst && onSelectSession(inst, session);
+                      }
+                    }}
                   >
                     <span className={`session-dot ${active ? "on" : ""}`} />
                     <span className="session-title" title={session.title}>
@@ -117,7 +126,17 @@ export function ProjectsPanel(props: ProjectsPanelProps) {
                     </span>
                     {isOpen && <span className="session-open-badge">открыта</span>}
                     <span className="session-time">{relTime(session.updatedAt)}</span>
-                  </button>
+                    <button
+                      className="session-delete"
+                      title="Удалить сессию"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteSession(session.id);
+                      }}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                 );
               })}
               {hidden > 0 && (
@@ -150,12 +169,33 @@ export function ProjectsPanel(props: ProjectsPanelProps) {
                 const active = selectedSessionId === session.id;
                 const isOpen = openSessionIds.includes(session.id);
                 return (
-                  <button key={session.id} className={`session-row ${active ? "active" : ""}`} onClick={() => onSelectSession(inst, session)}>
+                  <div
+                    key={session.id}
+                    className={`session-row ${active ? "active" : ""}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onSelectSession(inst, session)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        onSelectSession(inst, session);
+                      }
+                    }}
+                  >
                     <span className={`session-dot ${active ? "on" : ""}`} />
                     <span className="session-title" title={session.title}>{session.title || "Без названия"}</span>
                     {isOpen && <span className="session-open-badge">открыта</span>}
                     <span className="session-time">{relTime(session.updatedAt)}</span>
-                  </button>
+                    <button
+                      className="session-delete"
+                      title="Удалить сессию"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteSession(session.id);
+                      }}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                 );
               })}
               {hidden > 0 && (

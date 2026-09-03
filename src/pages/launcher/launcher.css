@@ -473,6 +473,36 @@ input[type="range"] {
   transition: background 0.15s var(--ease);
 }
 
+.session-row:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.session-delete {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  opacity: 0;
+  flex-shrink: 0;
+  transition: background 0.15s var(--ease), color 0.15s var(--ease), opacity 0.15s var(--ease);
+}
+
+.session-row:hover .session-delete,
+.session-delete:focus-visible {
+  opacity: 1;
+}
+
+.session-delete:hover {
+  background: rgba(251, 107, 107, 0.14);
+  color: var(--danger);
+}
+
 .session-row:last-child {
   border-bottom: none;
 }

@@ -167,6 +167,59 @@ pub async fn start_project(
     .unwrap_or_else(|e| Err(e.to_string()))
 }
 
+/// Удаляет сессию OpenCode и чистит связанное состояние. Общая для десктопа
+/// и мобильного моста (HTTP-вызов — вызывать из `spawn_blocking`).
+pub fn delete_session_inner(app: &AppHandle, session_id: &str) -> Result<AppState, String> {
+    let port = app
+        .state::<crate::state::ConversationStore>()
+        .ports
+        .lock()
+        .unwrap()
+        .get(session_id)
+        .copied()
+        .ok_or("порт сессии не найден")?;
+
+    crate::modules::opencode::delete_session(port, session_id)?;
+
+    // Убираем сессию из памяти.
+    {
+        let store = app.state::<crate::state::ConversationStore>();
+        store.conversations.lock().unwrap().remove(session_id);
+        store.ports.lock().unwrap().remove(session_id);
+        store.titles.lock().unwrap().remove(session_id);
+        store.projects.lock().unwrap().remove(session_id);
+        store.directories.lock().unwrap().remove(session_id);
+        store.open_sessions.lock().unwrap().remove(session_id);
+    }
+
+    // Закрываем окно чата, если оно было открыто.
+    if let Some(window) = app.get_webview_window(&format!("response-{session_id}")) {
+        let _ = window.close();
+    }
+
+    // Сбрасываем выбор, если удалили выбранную сессию.
+    let state = app.state::<SharedState>();
+    let mut s = state.0.lock().unwrap();
+    if s.selected_session.as_ref().map(|t| t.session_id.as_str()) == Some(session_id) {
+        s.selected_session = None;
+        s.response.clear();
+        s.status = AppStatus::Idle;
+        s.status_message = "Готов к работе".into();
+    }
+    let snapshot = s.clone();
+    drop(s);
+    emit_state(app, &snapshot);
+    save_state(app, &snapshot);
+    Ok(snapshot)
+}
+
+#[tauri::command]
+pub async fn delete_session(app: AppHandle, session_id: String) -> Result<AppState, String> {
+    tauri::async_runtime::spawn_blocking(move || delete_session_inner(&app, &session_id))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 pub async fn stop_project(worktree: String) -> Result<Vec<crate::modules::opencode::Project>, String> {
     tauri::async_runtime::spawn_blocking(move || {

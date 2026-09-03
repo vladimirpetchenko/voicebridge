@@ -88,6 +88,7 @@
 { "type": "command", "id": "18", "name": "create_session", "port": 4149, "worktree": "/path/to/project", "title": "…" }
 { "type": "command", "id": "19", "name": "hide_project", "worktree": "/path/to/project" }
 { "type": "command", "id": "20", "name": "unhide_project", "worktree": "/path/to/project" }
+{ "type": "command", "id": "26", "name": "delete_session", "sessionId": "ses_…" }
 { "type": "command", "id": "21", "name": "get_git_changes", "sessionId": "ses_…" }
 { "type": "command", "id": "22", "name": "get_git_diff", "sessionId": "ses_…", "path": "src/foo.rs" }
 { "type": "command", "id": "23", "name": "get_git_commits", "sessionId": "ses_…" }
@@ -102,6 +103,8 @@
   для проекта (по `worktree`); возвращают обновлённый список проектов.
 - `create_session` — создаёт новую сессию в экземпляре (`port`), делает её
   выбранной; возвращает цель `{instanceId, port, sessionId, title}`.
+- `delete_session` — удаляет сессию (`sessionId`) из OpenCode; возвращает
+  обновлённое состояние `AppState`.
 - `hide_project` / `unhide_project` — скрыть/вернуть проект из лаунчера
   (без удаления папки); возвращают обновлённый массив `hiddenProjects`.
 - `get_git_changes` — сводка Git проекта выбранной сессии: объект `GitInfo`

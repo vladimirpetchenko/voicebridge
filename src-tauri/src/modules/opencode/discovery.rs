@@ -231,3 +231,30 @@ pub fn create_session(port: u16, title: &str) -> Result<OpenCodeSession, String>
         .map_err(|e| format!("не удалось создать сессию: {e}"))?;
     Ok(OpenCodeSession::from(session))
 }
+
+/// Удаляет сессию OpenCode (DELETE /session/{id}).
+pub fn delete_session(port: u16, session_id: &str) -> Result<(), String> {
+    let client = http_client(Duration::from_secs(10));
+    let resp = client
+        .delete(format!("{}/session/{session_id}", base_url(port)))
+        .send()
+        .map_err(|e| format!("не удалось удалить сессию: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("не удалось удалить сессию: HTTP {}", resp.status()));
+    }
+    Ok(())
+}
+
+/// Обновляет заголовок сессии OpenCode (PATCH /session/{id}).
+pub fn update_session_title(port: u16, session_id: &str, title: &str) -> Result<(), String> {
+    let client = http_client(Duration::from_secs(10));
+    let resp = client
+        .patch(format!("{}/session/{session_id}", base_url(port)))
+        .json(&serde_json::json!({ "title": title }))
+        .send()
+        .map_err(|e| format!("не удалось переименовать сессию: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("не удалось переименовать сессию: HTTP {}", resp.status()));
+    }
+    Ok(())
+}

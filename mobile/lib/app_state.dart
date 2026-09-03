@@ -264,6 +264,26 @@ class AppController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  Future<void> deleteSession(String sessionId) async {
+    try {
+      await ws.command('delete_session', {'sessionId': sessionId});
+      // Если удалили выбранную сессию — сбрасываем выбор и очищаем чат.
+      if (selectedSessionId == sessionId) {
+        selectedInstance = null;
+        selectedSession = null;
+        messages.clear();
+        tools.clear();
+        pendingPermissions.clear();
+        pendingQuestions.clear();
+        gitChanges.clear();
+        busy = false;
+        usage = null;
+      }
+      await refreshSessions();
+      await refreshProjects();
+    } catch (_) {}
+  }
+
   Future<void> refreshProjects() async {
     try {
       final data = await ws.command('list_projects');

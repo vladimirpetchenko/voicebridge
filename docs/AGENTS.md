@@ -63,7 +63,7 @@ whisper-rs: `LIBCLANG_PATH` на `<LLVM>\bin`). Первая сборка ком
   `set_sensitivity`, `set_silence_timeout`, `set_send_mode`, `set_hotkey`,
   `send_text`, `list_opencode_sessions`,
   `select_opencode_session`, `select_opencode_instance`, `list_projects`,
-  `create_session`, `hide_project`, `unhide_project`,
+  `create_session`, `delete_session`, `hide_project`, `unhide_project`,
   `start_project`, `stop_project`, `get_models`, `download_model`,
   `select_stt_model`, `set_language`, `open_response_window`,
   `get_conversation`, `get_session_info`, `get_session_usage`,
@@ -207,7 +207,7 @@ OpenCode выбранной сессии (`opencode_model` из `/session`). Г�
 спроектировано и расписано в `docs/MOBILE.md` (ветка `feature/mobile-app`).
 Десктопная часть готова: встроенный WS-сервер в `modules/mobile.rs` (axum,
 порт 47800, токен/QR, команды `ping/list_sessions/list_projects/start_project/
-stop_project/create_session/hide_project/unhide_project/select_session/
+stop_project/create_session/delete_session/hide_project/unhide_project/select_session/
 send_prompt/abort/get_conversation/get_state/get_session_usage/reply_permission/
 reply_question/reject_question/register_device/get_git_changes/get_git_diff/
 get_git_commits/get_git_commit/get_git_branches`, трансляция `state-changed`,
@@ -265,13 +265,16 @@ APK (Flutter, job `android` на `ubuntu-latest`, debug-подпись) по т�
   сообщению только когда пользователь у низа (порог 40px); при прокрутке вверх
   позиция не трогается. Кнопка «К последнему сообщению» (`ArrowDown` на
   десктопе, `Icons.arrow_downward_rounded` в мобилке), когда не внизу.
+- ✅ **Управление сессиями** (десктоп + мобилка) — удаление сессии из лаунчера
+  (`DELETE /session/{id}`, подтверждение через `confirm`/диалог; закрывает окно
+  чата, чистит `ConversationStore` и сбрасывает выбор) и автоназвание: если
+  сессия была пустой, после первого сообщения подставляется имя из первых 60
+  символов запроса (`PATCH /session/{id}`). Команды `delete_session` (Tauri +
+  WS `delete_session`), функции `opencode::delete_session`/`update_session_title`.
 
 Далее:
 
-1. **Управление сессиями** — удаление сессии из лаунчера (десктоп + мобилка) и
-   автоматическое название: если сессия была пустой (без заголовка), после
-   первого сообщения подставлять осмысленное имя.
-2. **Автообновление** — довести до рабочего: включить
+1. **Автообновление** — довести до рабочего: включить
    `bundle.createUpdaterArtifacts`, добавить секрет `TAURI_SIGNING_PRIVATE_KEY`
    в CI, генерировать и публиковать `latest.json` + подписанные артефакты в
    релиз, подписать/нотаризировать `.app` (macOS) и собрать `.msi`/NSIS

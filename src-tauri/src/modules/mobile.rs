@@ -345,6 +345,14 @@ fn run_command(
             let state = crate::commands::create_session_inner(app, port, &worktree, &title)?;
             Ok(serde_json::to_value(state.selected_session).unwrap_or(serde_json::Value::Null))
         }
+        "delete_session" => {
+            let session_id = get_str(args, "sessionId");
+            if session_id.is_empty() {
+                return Err("sessionId обязателен".into());
+            }
+            let state = crate::commands::delete_session_inner(app, &session_id)?;
+            Ok(serde_json::to_value(state).unwrap_or(serde_json::Value::Null))
+        }
         "hide_project" => {
             let worktree = get_str(args, "worktree");
             if worktree.is_empty() {

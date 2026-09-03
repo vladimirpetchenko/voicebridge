@@ -22,7 +22,7 @@ mod streaming;
 mod usage;
 
 pub use actions::{abort_session, reject_question, reply_permission, reply_question};
-pub use discovery::{create_session, discover_instances};
+pub use discovery::{create_session, delete_session, discover_instances, update_session_title};
 pub use projects::{
     list_projects, list_projects_with_extra, opencode_binary, start_project, stop_project, Project,
 };

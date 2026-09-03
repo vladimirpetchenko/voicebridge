@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../app_state.dart';
 import '../models.dart';
+import '../theme.dart';
 import '../widgets/project_card.dart';
 import '../widgets/voicebridge_logo.dart';
 import 'chat_screen.dart';
@@ -55,6 +56,29 @@ class SessionsScreen extends StatelessWidget {
     if (context.mounted) {
       controller.refreshSessions();
       controller.refreshProjects();
+    }
+  }
+
+  Future<void> _deleteSession(BuildContext context, OpenCodeSession session) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Удаление сессии'),
+        content: const Text('Удалить сессию? Это действие необратимо.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Удалить', style: TextStyle(color: AppTheme.danger)),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && context.mounted) {
+      await context.read<AppController>().deleteSession(session.id);
     }
   }
 
@@ -138,6 +162,7 @@ class SessionsScreen extends StatelessWidget {
                     _open(context, instance, session);
                   }
                 },
+                onDeleteSession: (session) => _deleteSession(context, session),
               ),
             if (orphans.isNotEmpty) ...[
               const SizedBox(height: 16),
@@ -165,6 +190,7 @@ class SessionsScreen extends StatelessWidget {
                   },
                   onHide: () => context.read<AppController>().hideProject(inst.id),
                   onOpenSession: (session) => _open(context, inst, session),
+                  onDeleteSession: (session) => _deleteSession(context, session),
                 ),
             ],
             if (controller.hiddenProjects.isNotEmpty) ...[

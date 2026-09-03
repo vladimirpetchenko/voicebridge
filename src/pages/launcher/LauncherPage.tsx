@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { open } from "@tauri-apps/plugin-dialog";
+import { confirm, open } from "@tauri-apps/plugin-dialog";
 import { Mic, MicVocal, Settings } from "lucide-react";
 import { prettifyModel } from "../../shared/lib/format";
 import { ProjectsPanel } from "./ProjectsPanel";
@@ -240,6 +240,23 @@ export default function LauncherPage() {
       .then(setProjects)
       .catch((e) => setError(String(e)));
   }, []);
+
+  const deleteSession = useCallback(
+    async (sessionId: string) => {
+      const ok = await confirm("Удалить сессию? Это действие необратимо.", {
+        title: "Удаление сессии",
+        kind: "warning",
+      });
+      if (!ok) return;
+      invoke<AppState>("delete_session", { sessionId })
+        .then(() => {
+          refreshInstances();
+          refreshProjects();
+        })
+        .catch((e) => setError(String(e)));
+    },
+    [refreshInstances, refreshProjects],
+  );
 
   const createSession = useCallback(
     (port: number, worktree: string) => {
@@ -492,6 +509,7 @@ export default function LauncherPage() {
         onHideProject={hideProject}
         onUnhideProject={unhideProject}
         onSelectSession={selectSession}
+        onDeleteSession={deleteSession}
         onToggleSessions={toggleProjectSessions}
       />
 

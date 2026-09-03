@@ -120,10 +120,38 @@ pub fn send_prompt(app: AppHandle, text: String, prefer_session: Option<String>)
 
             let session_id = target.session_id;
             let port = target.port;
+            let title_was_empty = target.title.trim().is_empty();
 
             log::info!("sending prompt to session {session_id} (port {port})");
             // Фиксируем запрос пользователя в диалоге сессии.
             super::streaming::record_user_message(&app, &session_id, &text);
+
+            // Автоназвание: если сессия была пустой (без заголовка), после первого
+            // сообщения подставляем осмысленное имя.
+            if title_was_empty {
+                let title: String = text.chars().take(60).collect();
+                match super::update_session_title(port, &session_id, &title) {
+                    Ok(()) => {
+                        super::remember_session_title(&app, &session_id, &title);
+                        let state = app.state::<SharedState>();
+                        let mut s = state.0.lock().unwrap();
+                        let mut changed = false;
+                        if let Some(t) = s.selected_session.as_mut() {
+                            if t.session_id == session_id && t.title.trim().is_empty() {
+                                t.title = title.clone();
+                                changed = true;
+                            }
+                        }
+                        let snapshot = s.clone();
+                        drop(s);
+                        if changed {
+                            crate::commands::emit_state(&app, &snapshot);
+                            crate::commands::save_state(&app, &snapshot);
+                        }
+                    }
+                    Err(e) => log::warn!("не удалось задать название сессии {session_id}: {e}"),
+                }
+            }
 
             let client = http_client(Duration::from_secs(600));
             let base = base_url(port);
