@@ -7,7 +7,9 @@ plugins {
 
 android {
     namespace = "com.voicebridge.voicebridge_mobile"
-    compileSdk = flutter.compileSdkVersion
+    // flutter_secure_storage требует compileSdk 37; фиксируем явно, чтобы
+    // сборка не зависела от версии flutter.compileSdkVersion.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

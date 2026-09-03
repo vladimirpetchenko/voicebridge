@@ -69,6 +69,8 @@ src-tauri/src/              бэкенд
   modules/mobile.rs         мобильный доступ (WebSocket-сервер, токен/QR)
 src-tauri/examples/         whisper_check, opencode_check, projects_check
 scripts/gen_icon.py         генерация иконки
+scripts/build-desktop.sh    сборка установщика десктопа (текущая ОС)
+scripts/build-android.sh    сборка Android APK (release)
 ```
 
 ## Поток данных
@@ -134,12 +136,16 @@ scripts/gen_icon.py         генерация иконки
 npm install
 npm run tauri dev     # dev
 npm run tauri build   # релиз (.dmg / .exe)
+scripts/build-android.sh   # Android APK (см. docs/BUILD.md)
 ```
 
 Требования: Rust (rustup), Node 20+, cmake (для whisper.cpp), Xcode CLT
 (macOS) или MSVC Build Tools + LLVM (`libclang.dll` для bindgen whisper-rs,
 `LIBCLANG_PATH` на `<LLVM>\bin`) (Windows). Первая сборка компилирует
 whisper.cpp (несколько минут).
+
+Полная матрица сборки (включая Windows через CI и Android) — в
+[`docs/BUILD.md`](BUILD.md).
 
 ## Автообновление
 

@@ -65,11 +65,16 @@ npm run tauri dev
 ## Сборка релиза
 
 ```bash
-npm run tauri build
+npm run tauri build       # десктоп (или: scripts/build-desktop.sh)
+scripts/build-android.sh  # Android APK
 ```
 
 Результат: `VoiceBridge.dmg` (macOS) или установщик `.exe` (Windows) в
-`src-tauri/target/release/bundle/`.
+`src-tauri/target/release/bundle/`; APK — в
+`mobile/build/app/outputs/flutter-apk/app-release.apk`.
+
+Windows-установщик собирается только через CI или Windows-машину. Полная матрица
+сборки (десктоп, Android, CI) — в [`docs/BUILD.md`](docs/BUILD.md).
 
 ## Первый запуск
 
@@ -136,6 +141,8 @@ src-tauri/              бэкенд (Rust)
   src/modules/opencode.rs  интеграция с OpenCode
   src/modules/mobile.rs  мобильный доступ (WebSocket-сервер)
 scripts/gen_icon.py     генерация иконки
+scripts/build-desktop.sh   сборка установщика десктопа (текущая ОС)
+scripts/build-android.sh   сборка Android APK (release)
 ```
 
 ## Планы

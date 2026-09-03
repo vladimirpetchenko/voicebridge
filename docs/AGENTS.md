@@ -6,16 +6,23 @@
 
 ## Как собрать и запустить
 
+Полная матрица сборки (включая Android APK и CI) — в `docs/BUILD.md`. Коротко:
+
 ```bash
 npm install
 npm run tauri dev        # dev-режим (vite + cargo run)
-npm run tauri build      # релиз
+npm run tauri build      # релиз установщика (текущая ОС)
 
 # Rust отдельно (в src-tauri/):
 cargo check              # быстрая проверка
 cargo build              # полная сборка
 # Фронтенд отдельно (в корне):
 npm run build            # tsc + vite build
+
+# Android APK:
+scripts/build-android.sh   # cd mobile && flutter build apk --release
+# Windows-установщик — только через CI (docs/BUILD.md) или Windows:
+#   gh workflow run build.yml   /   git tag v0.1.4 && git push --tags
 ```
 
 Требования: Rust (rustup), Node 20+, cmake (whisper.cpp). macOS — Xcode CLT (clang,
